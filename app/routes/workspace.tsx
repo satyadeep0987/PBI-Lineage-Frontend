@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Database, KeyRound, Loader2, Menu, Network } from "lucide-react";
+import { Loader2, Menu } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import type { Route } from "./+types/workspace";
 import { AppFooter } from "~/components/app-footer";
 import { AppHeader } from "~/components/app-header";
+import { ApiDomainCanvas } from "~/components/workspace/api-domain-canvas";
 import { DatabaseSetup } from "~/components/workspace/database-setup";
 import { PowerBiSetup } from "~/components/workspace/power-bi-setup";
 import {
@@ -57,6 +58,11 @@ export default function Workspace() {
 
     return Array.from(counts, ([slug, value]) => ({ slug, ...value }));
   }, [endpoints]);
+  const activeGroup = groups.find((group) => group.slug === activeSection);
+  const activeEndpoints = useMemo(
+    () => endpoints.filter((endpoint) => tagSlug(endpoint.tag) === activeSection),
+    [activeSection, endpoints],
+  );
   const apiExecutor = useApiExecutor(endpoints);
 
   function navigateTo(nextSection: string) {
@@ -128,49 +134,19 @@ export default function Workspace() {
               onExplore={() => navigateTo("workspaces")}
             />
           ) : (
-            <SectionPlaceholder section={activeSection} groups={groups} />
+            <ApiDomainCanvas
+              domainName={activeGroup?.tag ?? "API workspace"}
+              endpoints={activeEndpoints}
+              execute={apiExecutor.execute}
+              result={apiExecutor.result}
+              error={apiExecutor.error}
+              isRunning={apiExecutor.isRunning}
+            />
           )}
         </main>
       </div>
 
       <AppFooter />
     </div>
-  );
-}
-
-function SectionPlaceholder({ section, groups }: { section: string; groups: ApiGroupSummary[] }) {
-  const group = groups.find((item) => item.slug === section);
-  const isDatabase = section === "database";
-  const isPowerBi = section === "power-bi";
-  const Icon = isDatabase ? Database : isPowerBi ? KeyRound : Network;
-  const title = isDatabase ? "Database setup" : isPowerBi ? "Power BI setup" : group?.tag ?? "API workspace";
-  const description = isDatabase
-    ? "Step 1 connects the Snowflake database before Microsoft authentication."
-    : isPowerBi
-      ? "Step 2 authenticates Power BI and Fabric with the Microsoft device flow."
-      : group
-        ? `${group.count} ${group.tag} operations will be available in this execution canvas.`
-        : "Choose a setup step or API domain from the sidebar.";
-
-  return (
-    <section className="min-h-[620px] border border-zinc-200 bg-white">
-      <div className="border-b border-zinc-200 px-5 py-4 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-[8px] bg-zinc-950 text-white">
-            <Icon className="size-4" />
-          </span>
-          <div>
-            <h1 className="text-lg font-semibold">{title}</h1>
-            <p className="text-sm text-zinc-500">{description}</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex min-h-[520px] items-center justify-center p-6 text-center">
-        <div className="max-w-md">
-          <Icon className="mx-auto size-8 text-zinc-300" />
-          <p className="mt-4 text-sm text-zinc-500">Execution controls are added in the next implementation phase.</p>
-        </div>
-      </div>
-    </section>
   );
 }
