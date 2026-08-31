@@ -79,7 +79,7 @@ export default function Home() {
                 PBI Lineage Explorer turns scattered metadata into a connected view of databases, semantic models, DAX, reports, and downstream impact. Teams spend minutes finding answers that once took hours of manual investigation.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button size="lg" render={<Link to="/workspace/database" />}>
+                <Button nativeButton={false} size="lg" render={<Link to="/workspace/database" />}>
                   Start setup
                   <ArrowRight className="size-4" />
                 </Button>
@@ -128,7 +128,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-cyan-400">A guided start</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-normal">From connection to impact in four steps.</h2>
               </div>
-              <Button variant="secondary" render={<Link to="/workspace/database" />}>
+              <Button nativeButton={false} variant="secondary" render={<Link to="/workspace/database" />}>
                 Open workspace
                 <ArrowRight className="size-4" />
               </Button>
