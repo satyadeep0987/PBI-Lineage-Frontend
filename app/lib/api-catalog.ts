@@ -57,6 +57,7 @@ export const SETUP_ENDPOINTS = {
   powerBiStart: "POST /api/v1/auth/microsoft/device/start",
   powerBiSessionStatus: "GET /api/v1/auth/microsoft/device/{session_id}/status",
   powerBiStatus: "GET /api/v1/auth/microsoft/device/status",
+  powerBiLogout: "POST /api/v1/auth/microsoft/device/logout",
 };
 
 export const DEFAULT_REQUEST_BODIES: Record<string, string> = {

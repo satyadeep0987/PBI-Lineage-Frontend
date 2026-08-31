@@ -7,6 +7,7 @@ import type { Route } from "./+types/workspace";
 import { AppFooter } from "~/components/app-footer";
 import { AppHeader } from "~/components/app-header";
 import { DatabaseSetup } from "~/components/workspace/database-setup";
+import { PowerBiSetup } from "~/components/workspace/power-bi-setup";
 import {
   type ApiGroupSummary,
   WorkspaceSidebar,
@@ -116,6 +117,15 @@ export default function Workspace() {
               isRunning={apiExecutor.isRunning}
               catalogReady={endpoints.length > 0}
               onNext={() => navigateTo("power-bi")}
+            />
+          ) : activeSection === "power-bi" ? (
+            <PowerBiSetup
+              execute={apiExecutor.execute}
+              result={apiExecutor.result}
+              error={apiExecutor.error}
+              isRunning={apiExecutor.isRunning}
+              catalogReady={endpoints.length > 0}
+              onExplore={() => navigateTo("workspaces")}
             />
           ) : (
             <SectionPlaceholder section={activeSection} groups={groups} />
