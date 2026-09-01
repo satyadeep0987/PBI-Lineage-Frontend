@@ -2,14 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
   CircleAlert,
-  FileJson,
   Loader2,
   Workflow,
 } from "lucide-react";
 import { Link } from "react-router";
 
 import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { useAppStore } from "~/stores/app-store";
 
@@ -51,7 +49,7 @@ export function AppHeader() {
           </span>
         </Link>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center">
           <Badge
             className={cn(
               "rounded-[8px] border px-2.5 py-1",
@@ -72,15 +70,6 @@ export function AppHeader() {
             <span className="hidden sm:inline">Backend </span>
             {healthQuery.isSuccess ? "online" : healthQuery.isLoading ? "checking" : "offline"}
           </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open(`${apiOrigin}/docs`, "_blank", "noreferrer")}
-            aria-label="Open API documentation"
-          >
-            <FileJson className="size-4" />
-            <span className="hidden sm:inline">API docs</span>
-          </Button>
         </div>
       </div>
     </header>

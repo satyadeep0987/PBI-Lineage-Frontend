@@ -53,8 +53,8 @@ const benefits = [
 ];
 
 const workflow = [
-  { number: "01", title: "Connect database", text: "Create the secured Snowflake session." },
-  { number: "02", title: "Authenticate Power BI", text: "Approve Microsoft device sign-in." },
+  { number: "01", title: "Authenticate Power BI", text: "Approve Microsoft device sign-in." },
+  { number: "02", title: "Connect database", text: "Create the secured Snowflake session." },
   { number: "03", title: "Discover the estate", text: "Load workspaces, models, reports, and sources." },
   { number: "04", title: "Trace impact", text: "Explore paths, changes, and validation results." },
 ];
@@ -79,11 +79,11 @@ export default function Home() {
                 PBI Lineage Explorer turns scattered metadata into a connected view of databases, semantic models, DAX, reports, and downstream impact. Teams spend minutes finding answers that once took hours of manual investigation.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button nativeButton={false} size="lg" render={<Link to="/workspace/database" />}>
+                <Button nativeButton={false} size="lg" render={<Link to="/workspace/power-bi" />}>
                   Start setup
                   <ArrowRight className="size-4" />
                 </Button>
-                <span className="text-sm text-zinc-500">Begin with your database connection</span>
+                <span className="text-sm text-zinc-500">Begin with Power BI authentication</span>
               </div>
             </div>
 
@@ -128,7 +128,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-cyan-400">A guided start</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-normal">From connection to impact in four steps.</h2>
               </div>
-              <Button nativeButton={false} variant="secondary" render={<Link to="/workspace/database" />}>
+              <Button nativeButton={false} variant="secondary" render={<Link to="/workspace/power-bi" />}>
                 Open workspace
                 <ArrowRight className="size-4" />
               </Button>

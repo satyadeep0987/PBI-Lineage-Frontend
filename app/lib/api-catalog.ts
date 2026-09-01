@@ -17,6 +17,7 @@ export type OpenApiParameter = {
 type OpenApiOperation = {
   tags?: string[];
   summary?: string;
+  description?: string;
   operationId?: string;
   parameters?: OpenApiParameter[];
   requestBody?: unknown;
@@ -36,6 +37,7 @@ export type ApiEndpoint = {
   path: string;
   tag: string;
   summary: string;
+  description: string;
   operationId: string;
   parameters: OpenApiParameter[];
   hasBody: boolean;
@@ -164,6 +166,7 @@ export function flattenEndpoints(openApi: OpenApiDocument | undefined) {
             path,
             tag: operation.tags?.[0] ?? "Other",
             summary: operation.summary ?? path,
+            description: operation.description ?? "",
             operationId: operation.operationId ?? `${method}_${path}`,
             parameters: operation.parameters ?? [],
             hasBody: Boolean(operation.requestBody),
