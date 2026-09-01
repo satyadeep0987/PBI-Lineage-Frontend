@@ -4,14 +4,19 @@ import {
   ModuleRegistry,
   themeQuartz,
   type ColDef,
+  type ICellRendererParams,
 } from "ag-grid-community";
+import { Background, Controls, ReactFlow, type Edge, type Node } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   AlertCircle,
   BookOpenCheck,
   Boxes,
   CheckCircle2,
+  ClipboardCopy,
   CircleAlert,
+  Copy,
   Database,
   Download,
   FileBarChart2,
@@ -465,7 +470,37 @@ function ColumnMappingTab({ workspace, selectedReport, semanticModels, selectedS
   daxQuery: UseQueryResult<DaxAnalysis, Error>;
   physicalSourceQuery: UseQueryResult<PhysicalSourceResult, Error>;
 }) {
-  const mappingRows = databaseColumnRows(parsedQuery.data, daxQuery.data);
+  const [selectedTableName, setSelectedTableName] = useState("");
+  const [selectedColumnName, setSelectedColumnName] = useState("");
+  const [selectedMeasureName, setSelectedMeasureName] = useState("");
+  const [columnDepth, setColumnDepth] = useState(2);
+  const [measureDepth, setMeasureDepth] = useState(2);
+  const tables = parsedQuery.data?.tables ?? [];
+
+  useEffect(() => {
+    if (tables.length && !tables.some((table) => table.name === selectedTableName)) {
+      setSelectedTableName(tables[0].name);
+    }
+  }, [selectedTableName, tables]);
+
+  const selectedTable = tables.find((table) => table.name === selectedTableName) ?? null;
+
+  useEffect(() => {
+    if (selectedTable?.columns.length && !selectedTable.columns.some((column) => column.name === selectedColumnName)) {
+      setSelectedColumnName(selectedTable.columns[0].name);
+    }
+  }, [selectedColumnName, selectedTable]);
+
+  const selectedColumn = selectedTable?.columns.find((column) => column.name === selectedColumnName) ?? null;
+
+  useEffect(() => {
+    if (selectedTable?.measures.length && !selectedTable.measures.some((measure) => measure.name === selectedMeasureName)) {
+      setSelectedMeasureName(selectedTable.measures[0].name);
+    }
+  }, [selectedMeasureName, selectedTable]);
+
+  const selectedMeasure = selectedTable?.measures.find((measure) => measure.name === selectedMeasureName) ?? null;
+  const mappingRows = databaseColumnRows(parsedQuery.data, daxQuery.data).filter((row) => !selectedTableName || row.semanticTable === selectedTableName);
   const sourceRows: ExplorerGridRow[] = (physicalSourceQuery.data?.sources ?? []).map((source) => ({ id: source.source_id, sourceId: source.source_id, provider: source.provider, location: [source.server, source.database, source.schema_name, source.object_name].filter(Boolean).join(".") || "Not reported", kind: source.kind }));
   const context = makeExportContext(workspace, selectedReport, selectedSemanticModel);
   return <div className="space-y-6">
@@ -475,11 +510,187 @@ function ColumnMappingTab({ workspace, selectedReport, semanticModels, selectedS
     {parsedQuery.isError ? <ExplorerError text="Semantic definition retrieval is unavailable for the selected model." /> : null}
     {daxQuery.isLoading && parsedQuery.data ? <ExplorerLoading label="Finding DAX expressions that use each column" compact /> : null}
     {daxQuery.isError && parsedQuery.data ? <DaxUnavailable /> : null}
-    {parsedQuery.data && <ExplorerGrid rowData={mappingRows} columnDefs={[{ field: "sourceColumn", headerName: "Database column", minWidth: 230, flex: 1 }, { field: "semanticTable", headerName: "Semantic table", minWidth: 190 }, { field: "semanticColumn", headerName: "Semantic column", minWidth: 190 }, { field: "dataType", headerName: "Data type", minWidth: 130 }, { field: "daxUsedBy", headerName: "Used by DAX", minWidth: 220 }, daxColumn("daxExpressions", "DAX expression using column"), { field: "evidence", headerName: "Definition evidence", minWidth: 240, flex: 1 }]} emptyMessage="No source-column mappings were found in the semantic definition." exportFileName={`${filePart(selectedSemanticModel?.name)}-column-mapping`} exportContext={context} />}
+    {parsedQuery.data && <><div className="grid gap-4 border-y border-zinc-200 py-4 md:grid-cols-3"><LineageSelect id="lineage-table" label="Semantic table" value={selectedTableName} options={tables.map((table) => table.name)} onChange={setSelectedTableName} /><LineageSelect id="lineage-column" label="Column" value={selectedColumnName} options={selectedTable?.columns.map((column) => column.name) ?? []} onChange={setSelectedColumnName} /><DepthSelector id="column-lineage-depth" value={columnDepth} onChange={setColumnDepth} /></div>{selectedTable && selectedColumn && <ColumnLineageDiagram parsed={parsedQuery.data} table={selectedTable} column={selectedColumn} dax={daxQuery.data} depth={columnDepth} />}{selectedTable && <div className="space-y-4 border-t border-zinc-200 pt-6"><SectionHeading icon={<TableProperties className="size-5" />} title="Measure-level lineage" text="Select the target measure to see the columns and measures used to calculate it, followed by measures that depend on it." /><div className="grid gap-4 md:grid-cols-2"><LineageSelect id="lineage-measure" label="Target measure" value={selectedMeasureName} options={selectedTable.measures.map((measure) => measure.name)} onChange={setSelectedMeasureName} /><DepthSelector id="measure-lineage-depth" value={measureDepth} onChange={setMeasureDepth} /></div>{selectedMeasure ? <MeasureLineageDiagram parsed={parsedQuery.data} table={selectedTable} measure={selectedMeasure} dax={daxQuery.data} depth={measureDepth} /> : <div className="border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">No measures were returned for the selected semantic table.</div>}</div>}<ExplorerGrid rowData={mappingRows} columnDefs={[{ field: "sourceColumn", headerName: "Database column", minWidth: 230, flex: 1 }, { field: "semanticTable", headerName: "Semantic table", minWidth: 190 }, { field: "semanticColumn", headerName: "Semantic column", minWidth: 190 }, { field: "dataType", headerName: "Data type", minWidth: 130 }, { field: "daxUsedBy", headerName: "Used by DAX", minWidth: 220 }, daxColumn("daxExpressions", "DAX expression using column"), { field: "evidence", headerName: "Definition evidence", minWidth: 240, flex: 1 }]} emptyMessage="No source-column mappings were found in the semantic definition." exportFileName={`${filePart(selectedSemanticModel?.name)}-${filePart(selectedTableName)}-column-mapping`} exportContext={context} /></>}
     {physicalSourceQuery.isLoading ? <ExplorerLoading label="Analyzing physical source evidence" compact /> : null}
     {physicalSourceQuery.data && <div><SectionHeading icon={<Database className="size-5" />} title="Detected physical sources" text="Physical provider, database, and object details discovered from semantic partitions." /><ExplorerGrid rowData={sourceRows} columnDefs={[{ field: "provider", headerName: "Provider", minWidth: 180 }, { field: "location", headerName: "Database object", minWidth: 300, flex: 1 }, { field: "kind", headerName: "Kind", minWidth: 140 }]} emptyMessage="No physical sources were detected." exportFileName={`${filePart(selectedSemanticModel?.name)}-physical-sources`} exportContext={context} /></div>}
     {physicalSourceQuery.isError && parsedQuery.data && <div className="border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Physical-source analysis is not enabled for this session. The source-column and DAX evidence above is still available.</div>}
   </div>;
+}
+
+function LineageSelect({ id, label, value, options, onChange }: { id: string; label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return <div className="space-y-1.5"><label className="text-xs font-semibold text-zinc-600" htmlFor={id}>{label}</label><select id={id} value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"><option value="" disabled>Select a {label.toLowerCase()}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>;
+}
+
+function DepthSelector({ id, value, onChange }: { id: string; value: number; onChange: (value: number) => void }) {
+  return <div className="space-y-1.5"><label className="text-xs font-semibold text-zinc-600" htmlFor={id}>Lineage depth</label><select id={id} value={value} onChange={(event) => onChange(Number(event.target.value))} className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100">{[1, 2, 3, 4, 5, 6].map((depth) => <option key={depth} value={depth}>{depth} {depth === 1 ? "level" : "levels"}</option>)}</select></div>;
+}
+
+function ColumnLineageDiagram({ parsed, table, column, dax, depth }: { parsed: ParsedSemanticModel; table: ParsedTable; column: ParsedColumn; dax: DaxAnalysis | undefined; depth: number }) {
+  const graph = useMemo(() => buildColumnLineage(parsed, table, column, dax, depth), [column, dax, depth, parsed, table]);
+  return <LineageCanvas title="Column-level lineage" description={`${table.name}[${column.name}] from source evidence through DAX calculations.`} graph={graph} emptyText="No column lineage could be prepared for the selected field." />;
+}
+
+function MeasureLineageDiagram({ parsed, table, measure, dax, depth }: { parsed: ParsedSemanticModel; table: ParsedTable; measure: ParsedTable["measures"][number]; dax: DaxAnalysis | undefined; depth: number }) {
+  const graph = useMemo(() => buildMeasureLineage(parsed, table, measure, dax, depth), [dax, depth, measure, parsed, table]);
+  return <LineageCanvas title="Measure-level lineage" description={`${table.name}[${measure.name}] is the target measure. Its calculation inputs and dependent measures are shown to the selected depth.`} graph={graph} emptyText="No measure lineage could be prepared for the selected measure." />;
+}
+
+type LineageGraph = { nodes: Node[]; edges: Edge[] };
+
+function LineageCanvas({ title, description, graph, emptyText }: { title: string; description: string; graph: LineageGraph; emptyText: string }) {
+  return <div className="border border-zinc-200 bg-white"><div className="border-b border-zinc-200 px-4 py-3"><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-zinc-500">{description}</p></div><div className="h-[520px] min-h-[420px]">{graph.nodes.length ? <ReactFlow nodes={graph.nodes} edges={graph.edges} fitView fitViewOptions={{ padding: 0.2 }} nodesDraggable={false} nodesConnectable={false} elementsSelectable zoomOnDoubleClick={false} defaultEdgeOptions={{ type: "smoothstep" }}><Background gap={18} size={1} /><Controls showInteractive={false} /></ReactFlow> : <div className="flex h-full items-center justify-center p-6 text-sm text-zinc-500">{emptyText}</div>}</div></div>;
+}
+
+function buildColumnLineage(parsed: ParsedSemanticModel, table: ParsedTable, column: ParsedColumn, dax: DaxAnalysis | undefined, depth: number): LineageGraph {
+  const dependencies = dax?.dependencies ?? [];
+  const expressionIndex = buildExpressionIndex(parsed);
+  const rootKey = objectKey(table.name, column.name);
+  const rootId = `semantic-${lineageId(rootKey)}`;
+  const sourceId = `source-${lineageId(rootKey)}`;
+  const sourceLabel = [
+    column.source_column ? `Column: ${column.source_column}` : null,
+    column.source_path ? `Path: ${column.source_path}` : null,
+  ].filter(Boolean).join(" | ") || "Source column not declared";
+  const nodes: Node[] = [
+    lineageNode(sourceId, "Source evidence", sourceLabel, { x: 410, y: 0 }, "source"),
+    lineageNode(rootId, `${table.name}[${column.name}]`, column.expression ?? "Semantic column", { x: 410, y: 150 }, "semantic"),
+  ];
+  const edges: Edge[] = [lineageEdge(`${sourceId}-${rootId}`, sourceId, rootId, "maps to")];
+  const nodeIds = new Map<string, string>([[rootKey, rootId]]);
+  let currentKeys = [rootKey];
+  let edgeIndex = 0;
+
+  for (let level = 1; level <= depth && currentKeys.length; level += 1) {
+    const next = new Map<string, DaxReference>();
+    const pendingEdges: Array<{ sourceKey: string; target: DaxReference; reference: string }> = [];
+    currentKeys.forEach((currentKey) => {
+      dependencies.filter((edge) => objectKey(edge.source.table_name, edge.source.object_name) === currentKey).forEach((edge) => {
+        const targetKey = objectKey(edge.target.table_name, edge.target.object_name);
+        next.set(targetKey, edge.target);
+        pendingEdges.push({ sourceKey: currentKey, target: edge.target, reference: edge.reference_text });
+      });
+    });
+
+    const positions = lineageLayerPositions([...next.keys()], 150 + level * 170);
+    next.forEach((reference, key) => {
+      if (!nodeIds.has(key)) {
+        const nodeId = `dax-${lineageId(key)}`;
+        nodeIds.set(key, nodeId);
+        nodes.push(lineageNode(nodeId, reference.qualified_name, expressionIndex.get(key) ?? `DAX ${reference.object_type}`, positions.get(key) ?? { x: 410, y: 150 + level * 170 }, "dax"));
+      }
+    });
+    pendingEdges.forEach(({ sourceKey, target, reference }) => {
+      const targetKey = objectKey(target.table_name, target.object_name);
+      const sourceNodeId = nodeIds.get(sourceKey);
+      const targetNodeId = nodeIds.get(targetKey);
+      if (sourceNodeId && targetNodeId) edges.push(lineageEdge(`column-edge-${edgeIndex++}`, sourceNodeId, targetNodeId, reference));
+    });
+    currentKeys = [...next.keys()];
+  }
+
+  return { nodes, edges };
+}
+
+function buildMeasureLineage(parsed: ParsedSemanticModel, table: ParsedTable, measure: ParsedTable["measures"][number], dax: DaxAnalysis | undefined, depth: number): LineageGraph {
+  const dependencies = dax?.dependencies ?? [];
+  const expressionIndex = buildExpressionIndex(parsed);
+  const rootKey = objectKey(table.name, measure.name);
+  const rootId = `measure-${lineageId(rootKey)}`;
+  const nodes: Node[] = [lineageNode(rootId, `${table.name}[${measure.name}]`, measure.expression ?? "Target measure", { x: 410, y: 0 }, "measure")];
+  const edges: Edge[] = [];
+  const nodeIds = new Map<string, string>([[rootKey, rootId]]);
+  let edgeIndex = 0;
+
+  let upstreamCurrent = [rootKey];
+  let upstreamLevels = 0;
+  for (let level = 1; level <= depth && upstreamCurrent.length; level += 1) {
+    const next = new Map<string, DaxReference>();
+    const pendingEdges: Array<{ source: DaxReference; targetKey: string; reference: string }> = [];
+    upstreamCurrent.forEach((currentKey) => {
+      dependencies.filter((edge) => objectKey(edge.target.table_name, edge.target.object_name) === currentKey).forEach((edge) => {
+        const sourceKey = objectKey(edge.source.table_name, edge.source.object_name);
+        next.set(sourceKey, edge.source);
+        pendingEdges.push({ source: edge.source, targetKey: currentKey, reference: edge.reference_text });
+      });
+    });
+    if (!next.size) break;
+    upstreamLevels = level;
+    const positions = lineageLayerPositions([...next.keys()], 150 + (level - 1) * 170);
+    next.forEach((reference, key) => {
+      if (!nodeIds.has(key)) {
+        const nodeId = `${lineageTone(reference) === "measure" ? "measure" : "semantic"}-${lineageId(key)}`;
+        nodeIds.set(key, nodeId);
+        nodes.push(lineageNode(nodeId, reference.qualified_name, expressionIndex.get(key) ?? `${reference.object_type} source`, positions.get(key) ?? { x: 410, y: 150 + (level - 1) * 170 }, lineageTone(reference)));
+      }
+    });
+    pendingEdges.forEach(({ source, targetKey, reference }) => {
+      const sourceNodeId = nodeIds.get(objectKey(source.table_name, source.object_name));
+      const targetNodeId = nodeIds.get(targetKey);
+      if (sourceNodeId && targetNodeId) edges.push(lineageEdge(`measure-source-${edgeIndex++}`, sourceNodeId, targetNodeId, reference));
+    });
+    upstreamCurrent = [...next.keys()];
+  }
+
+  let downstreamCurrent = [rootKey];
+  const downstreamStart = 150 + Math.max(upstreamLevels, 1) * 170;
+  for (let level = 1; level <= depth && downstreamCurrent.length; level += 1) {
+    const next = new Map<string, DaxReference>();
+    const pendingEdges: Array<{ sourceKey: string; target: DaxReference; reference: string }> = [];
+    downstreamCurrent.forEach((currentKey) => {
+      dependencies.filter((edge) => objectKey(edge.source.table_name, edge.source.object_name) === currentKey).forEach((edge) => {
+        const targetKey = objectKey(edge.target.table_name, edge.target.object_name);
+        next.set(targetKey, edge.target);
+        pendingEdges.push({ sourceKey: currentKey, target: edge.target, reference: edge.reference_text });
+      });
+    });
+    if (!next.size) break;
+    const positions = lineageLayerPositions([...next.keys()], downstreamStart + (level - 1) * 170);
+    next.forEach((reference, key) => {
+      if (!nodeIds.has(key)) {
+        const nodeId = `${lineageTone(reference) === "measure" ? "measure" : "dax"}-${lineageId(key)}`;
+        nodeIds.set(key, nodeId);
+        nodes.push(lineageNode(nodeId, reference.qualified_name, expressionIndex.get(key) ?? `DAX ${reference.object_type}`, positions.get(key) ?? { x: 410, y: downstreamStart + (level - 1) * 170 }, lineageTone(reference)));
+      }
+    });
+    pendingEdges.forEach(({ sourceKey, target, reference }) => {
+      const sourceNodeId = nodeIds.get(sourceKey);
+      const targetNodeId = nodeIds.get(objectKey(target.table_name, target.object_name));
+      if (sourceNodeId && targetNodeId) edges.push(lineageEdge(`measure-dependent-${edgeIndex++}`, sourceNodeId, targetNodeId, reference));
+    });
+    downstreamCurrent = [...next.keys()];
+  }
+
+  return { nodes, edges };
+}
+
+function lineageTone(reference: DaxReference): "semantic" | "dax" | "measure" {
+  if (reference.object_type === "measure") return "measure";
+  if (reference.object_type === "calculated_column" || reference.object_type === "calculated_table") return "dax";
+  return "semantic";
+}
+
+function lineageNode(id: string, title: string, detail: string, position: { x: number; y: number }, tone: "source" | "semantic" | "dax" | "measure") : Node {
+  const tones = {
+    source: { border: "#99f6e4", background: "#f0fdfa", accent: "#0f766e" },
+    semantic: { border: "#bae6fd", background: "#f0f9ff", accent: "#0369a1" },
+    dax: { border: "#fde68a", background: "#fffbeb", accent: "#b45309" },
+    measure: { border: "#c4b5fd", background: "#faf5ff", accent: "#6d28d9" },
+  }[tone];
+  return { id, position, data: { label: <div className="max-w-[220px] text-left"><div className="text-xs font-semibold" style={{ color: tones.accent }}>{title}</div><div className="mt-1 break-words text-[11px] leading-4 text-zinc-600">{abbreviate(detail, 110)}</div></div> }, style: { width: 248, border: `1px solid ${tones.border}`, borderRadius: 6, background: tones.background, padding: 10, boxShadow: "none" } };
+}
+
+function lineageEdge(id: string, source: string, target: string, label: string): Edge {
+  return { id, source, target, label: abbreviate(label, 34), type: "smoothstep", animated: false, style: { stroke: "#64748b" }, labelStyle: { fontSize: 10, fill: "#475569" }, labelBgStyle: { fill: "#ffffff", fillOpacity: 0.92 } };
+}
+
+function lineageLayerPositions(keys: string[], y: number) {
+  const spacing = 276;
+  const start = Math.max(20, 534 - ((keys.length - 1) * spacing) / 2);
+  return new Map(keys.map((key, index) => [key, { x: start + index * spacing, y }]));
+}
+
+function lineageId(value: string) {
+  return value.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
 }
 
 function NameSelector({ id, label, items, selectedId, onChange }: { id: string; label: string; items: Array<{ id: string; name: string }>; selectedId: string; onChange: (id: string) => void }) {
@@ -503,7 +714,29 @@ function ExplorerGrid({ rowData, columnDefs, onRowClick, emptyMessage, exportFil
   exportFileName: string;
   exportContext: ExportContext;
 }) {
-  return <div className="mt-4 overflow-x-auto border border-zinc-200"><div className="flex min-w-[720px] items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-2"><span className="text-xs text-zinc-500">{rowData.length} {rowData.length === 1 ? "row" : "rows"}</span><div className="flex gap-2"><Button type="button" variant="outline" size="sm" title="Download CSV" disabled={!rowData.length} onClick={() => downloadCsv(rowData, exportContext, exportFileName)}><Download className="size-3.5" /> CSV</Button><Button type="button" variant="outline" size="sm" title="Download Excel-compatible file" disabled={!rowData.length} onClick={() => downloadExcel(rowData, exportContext, exportFileName)}><FileSpreadsheet className="size-3.5" /> Excel</Button></div></div><div className="h-[350px] min-w-[720px]"><AgGridReact<ExplorerGridRow> theme={explorerTheme} rowData={rowData} columnDefs={columnDefs} defaultColDef={{ sortable: true, resizable: true, minWidth: 110 }} rowHeight={42} headerHeight={40} suppressCellFocus overlayNoRowsTemplate={`<span class="ag-overlay-no-rows-center">${emptyMessage}</span>`} onRowClicked={(event) => event.data && onRowClick?.(event.data)} /></div></div>;
+  const [tableCopied, setTableCopied] = useState(false);
+
+  async function copyTable() {
+    await copyText(toTabSeparatedValues(withExportContext(rowData, exportContext)));
+    setTableCopied(true);
+    window.setTimeout(() => setTableCopied(false), 1800);
+  }
+
+  return <div className="mt-4 overflow-x-auto border border-zinc-200"><div className="flex min-w-[720px] items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-2"><span className="text-xs text-zinc-500">{rowData.length} {rowData.length === 1 ? "row" : "rows"}</span><div className="flex gap-2"><Button type="button" variant="outline" size="sm" title="Copy all table values" disabled={!rowData.length} onClick={() => void copyTable()}>{tableCopied ? <CheckCircle2 className="size-3.5 text-emerald-700" /> : <ClipboardCopy className="size-3.5" />} {tableCopied ? "Copied" : "Copy table"}</Button><Button type="button" variant="outline" size="sm" title="Download CSV" disabled={!rowData.length} onClick={() => downloadCsv(rowData, exportContext, exportFileName)}><Download className="size-3.5" /> CSV</Button><Button type="button" variant="outline" size="sm" title="Download Excel-compatible file" disabled={!rowData.length} onClick={() => downloadExcel(rowData, exportContext, exportFileName)}><FileSpreadsheet className="size-3.5" /> Excel</Button></div></div><div className="h-[350px] min-w-[720px]"><AgGridReact<ExplorerGridRow> theme={explorerTheme} rowData={rowData} columnDefs={columnDefs} defaultColDef={{ sortable: true, resizable: true, minWidth: 110, cellRenderer: CopyableCell }} rowHeight={42} headerHeight={40} suppressCellFocus={false} enableCellTextSelection ensureDomOrder overlayNoRowsTemplate={`<span class="ag-overlay-no-rows-center">${emptyMessage}</span>`} onRowClicked={(event) => event.data && onRowClick?.(event.data)} /></div></div>;
+}
+
+function CopyableCell({ value }: ICellRendererParams<ExplorerGridRow>) {
+  const [copied, setCopied] = useState(false);
+  const text = String(value ?? "--");
+
+  async function copyValue(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    await copyText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  return <span className="group flex h-full min-w-0 items-center gap-1"><span className="min-w-0 truncate" title={text}>{abbreviate(text, 120)}</span><button type="button" aria-label="Copy cell value" title="Copy value" className="ml-auto hidden shrink-0 text-zinc-400 hover:text-teal-700 group-hover:inline-flex focus:inline-flex" onClick={(event) => void copyValue(event)}>{copied ? <CheckCircle2 className="size-3.5 text-emerald-700" /> : <Copy className="size-3.5" />}</button></span>;
 }
 
 function daxColumn(field = "daxExpression", headerName = "DAX expression"): ColDef<ExplorerGridRow> {
@@ -581,6 +814,30 @@ function collectColumns(rows: Array<Record<string, ExportValue>>) {
   return Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
 }
 
+function toTabSeparatedValues(rows: Array<Record<string, ExportValue>>) {
+  const columns = collectColumns(rows);
+  return [
+    columns.join("\t"),
+    ...rows.map((row) => columns.map((column) => String(row[column] ?? "").replace(/[\t\r\n]+/g, " ")).join("\t")),
+  ].join("\n");
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+}
+
 function csvCell(value: ExportValue) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
@@ -645,7 +902,8 @@ function ExplorerError({ text }: { text: string }) {
 }
 
 async function requestJson<T>(apiOrigin: string, path: string, init?: RequestInit) {
-  const response = await fetch(`${apiOrigin}${path}`, { credentials: "include", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  const adminKey = useAppStore.getState().adminKey.trim();
+  const response = await fetch(`${apiOrigin}${path}`, { credentials: "include", ...init, headers: { "Content-Type": "application/json", ...(adminKey ? { "X-Lineage-Admin-Key": adminKey } : {}), ...init?.headers } });
   const body = await readJsonResponse(response);
   if (!response.ok) throw new Error(readError(body, response.status));
   return body as T;

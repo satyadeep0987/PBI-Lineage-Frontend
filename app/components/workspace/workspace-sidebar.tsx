@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Database,
+  GitBranch,
   Home,
   KeyRound,
   SearchCheck,
@@ -27,7 +28,7 @@ export function WorkspaceSidebar({
 }) {
   const documentationActive =
     activeSection === "api-docs" ||
-    !["power-bi", "database", "explorer"].includes(activeSection);
+    !["power-bi", "database", "explorer", "report-lineage"].includes(activeSection);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#fafbfc]">
@@ -67,8 +68,15 @@ export function WorkspaceSidebar({
             active={activeSection === "explorer"}
             icon={SearchCheck}
             label="Explorer"
-            meta="Estate"
+            meta="Inventory"
             onClick={() => onNavigate("explorer")}
+          />
+          <NavigationItem
+            active={activeSection === "report-lineage"}
+            icon={GitBranch}
+            label="Report lineage"
+            meta="Reports"
+            onClick={() => onNavigate("report-lineage")}
           />
         </div>
 

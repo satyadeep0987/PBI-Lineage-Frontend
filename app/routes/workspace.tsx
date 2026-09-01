@@ -18,12 +18,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "~/components/ui/sheet";
-import { fetchOpenApi, flattenEndpoints } from "~/lib/api-catalog";
+import { fetchOpenApi, flattenEndpoints, SETUP_ENDPOINT_DEFINITIONS } from "~/lib/api-catalog";
 import { useApiExecutor } from "~/lib/use-api-executor";
 import { useAppStore } from "~/stores/app-store";
 
 const Explorer = lazy(() =>
   import("~/components/workspace/explorer").then((module) => ({ default: module.Explorer })),
+);
+const ReportLineage = lazy(() =>
+  import("~/components/workspace/report-lineage").then((module) => ({ default: module.ReportLineage })),
 );
 
 export function meta({}: Route.MetaArgs) {
@@ -42,7 +45,14 @@ export default function Workspace() {
     queryFn: () => fetchOpenApi(apiOrigin),
   });
   const endpoints = useMemo(
-    () => flattenEndpoints(openApiQuery.data),
+    () => {
+      const discoveredEndpoints = flattenEndpoints(openApiQuery.data);
+      const discoveredIds = new Set(discoveredEndpoints.map((endpoint) => endpoint.id));
+      return [
+        ...discoveredEndpoints,
+        ...SETUP_ENDPOINT_DEFINITIONS.filter((endpoint) => !discoveredIds.has(endpoint.id)),
+      ];
+    },
     [openApiQuery.data],
   );
   const apiExecutor = useApiExecutor(endpoints);
@@ -119,10 +129,18 @@ export default function Workspace() {
             <Suspense fallback={<ExplorerLoading />}>
               <Explorer />
             </Suspense>
+          ) : activeSection === "report-lineage" ? (
+            <Suspense fallback={<ExplorerLoading />}>
+              <ReportLineage />
+            </Suspense>
           ) : (
             <ApiDocumentation
               endpoints={endpoints}
               selectedGroupSlug={activeSection === "api-docs" ? undefined : activeSection}
+              execute={apiExecutor.execute}
+              result={apiExecutor.result}
+              error={apiExecutor.error}
+              isRunning={apiExecutor.isRunning}
             />
           )}
         </main>

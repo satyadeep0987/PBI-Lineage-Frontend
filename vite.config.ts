@@ -4,6 +4,14 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter()],
+  optimizeDeps: {
+    include: [
+      "@tanstack/react-query",
+      "@xyflow/react",
+      "ag-grid-community",
+      "ag-grid-react",
+    ],
+  },
   resolve: {
     tsconfigPaths: true,
   },

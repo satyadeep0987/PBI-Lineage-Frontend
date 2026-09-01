@@ -6,6 +6,10 @@
 /.react-router/
 /build/
 
+# Playwright
+/playwright-report/
+/test-results/
+
 
 
 PROJECT_CONTEXT.md

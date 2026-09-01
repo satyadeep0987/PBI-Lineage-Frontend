@@ -74,15 +74,19 @@ export function useApiExecutor(endpoints: ApiEndpoint[]) {
               : JSON.stringify(options.body)
             : undefined,
         });
+        const responseBody = await readJsonResponse(response);
         const nextResult: ApiResult = {
           endpoint: endpoint.id,
           status: response.status,
           ok: response.ok,
           durationMs: Math.round(performance.now() - startedAt),
-          body: await readJsonResponse(response),
+          body: responseBody,
           headers: Object.fromEntries(response.headers.entries()),
         };
 
+        if (!response.ok) {
+          setError(readResponseError(responseBody, response.status));
+        }
         setResult(nextResult);
         return nextResult;
       } catch (caughtError) {
@@ -110,4 +114,19 @@ export function useApiExecutor(endpoints: ApiEndpoint[]) {
   );
 
   return { execute, result, error, isRunning };
+}
+
+function readResponseError(body: unknown, status: number) {
+  if (typeof body === "string" && body.trim()) return body;
+  if (typeof body === "object" && body !== null && "detail" in body) {
+    const detail = (body as Record<string, unknown>).detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item) => typeof item === "object" && item !== null && "msg" in item ? (item as Record<string, unknown>).msg : null)
+        .filter((item): item is string => typeof item === "string");
+      if (messages.length) return messages.join(" ");
+    }
+  }
+  return `Request failed with status ${status}.`;
 }

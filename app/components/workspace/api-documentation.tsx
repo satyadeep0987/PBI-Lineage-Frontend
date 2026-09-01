@@ -1,20 +1,32 @@
-import { BookOpenText, FileText, Search } from "lucide-react";
+import { BookOpenText, ChevronUp, FileText, Play, Search, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { type ApiEndpoint, methodTone, tagSlug } from "~/lib/api-catalog";
+import { ApiExecutionPanel } from "~/components/workspace/api-execution-panel";
+import { type ApiEndpoint, type ApiResult, methodTone, tagSlug } from "~/lib/api-catalog";
+import type { ExecuteEndpoint } from "~/lib/use-api-executor";
 import { cn } from "~/lib/utils";
 
 export function ApiDocumentation({
   endpoints,
   selectedGroupSlug,
+  execute,
+  result,
+  error,
+  isRunning,
 }: {
   endpoints: ApiEndpoint[];
   selectedGroupSlug?: string;
+  execute: ExecuteEndpoint;
+  result: ApiResult | null;
+  error: string | null;
+  isRunning: boolean;
 }) {
   const [filter, setFilter] = useState("");
   const [activeGroup, setActiveGroup] = useState(selectedGroupSlug ?? "all");
+  const [activeEndpointId, setActiveEndpointId] = useState<string | null>(null);
   const groups = useMemo(
     () =>
       Array.from(
@@ -31,7 +43,14 @@ export function ApiDocumentation({
 
   useEffect(() => {
     setActiveGroup(selectedGroupSlug ?? "all");
+    setActiveEndpointId(null);
   }, [selectedGroupSlug]);
+
+  useEffect(() => {
+    if (activeEndpointId && !endpoints.some((endpoint) => endpoint.id === activeEndpointId)) {
+      setActiveEndpointId(null);
+    }
+  }, [activeEndpointId, endpoints]);
 
   const filteredEndpoints = useMemo(() => {
     const normalizedFilter = filter.trim().toLowerCase();
@@ -73,10 +92,13 @@ export function ApiDocumentation({
                 <Badge className="rounded-[8px] border border-zinc-200 bg-zinc-50 text-zinc-700">
                   {endpoints.length} operations
                 </Badge>
+                <Badge className="rounded-[8px] border border-emerald-200 bg-emerald-50 text-emerald-800">
+                  <Zap className="size-3" /> Execution enabled
+                </Badge>
               </div>
               <h1 className="text-lg font-semibold">API documentation</h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">
-                Grouped service operations for the PBI Lineage application. Routes are shown for reference only and remain inside this application.
+                Browse grouped service operations, set request values, and execute them against the connected PBI Lineage backend.
               </p>
             </div>
           </div>
@@ -116,7 +138,7 @@ export function ApiDocumentation({
             </div>
             <div className="divide-y divide-zinc-100 border-y border-zinc-200">
               {groupEndpoints.map((endpoint) => (
-                <article key={endpoint.id} className="grid gap-3 py-4 md:grid-cols-[100px_minmax(0,1fr)_minmax(220px,0.9fr)] md:gap-5">
+                <article key={endpoint.id} className="grid gap-3 py-4 md:grid-cols-[90px_minmax(0,1fr)_minmax(220px,0.9fr)_auto] md:gap-5">
                   <div>
                     <span className={cn("inline-flex rounded-[6px] border px-2 py-1 text-xs font-semibold uppercase", methodTone(endpoint.method))}>
                       {endpoint.method}
@@ -127,6 +149,15 @@ export function ApiDocumentation({
                     <p className="mt-1 break-all font-mono text-xs text-zinc-500">{endpoint.path}</p>
                   </div>
                   <p className="text-sm leading-6 text-zinc-600">{endpointDescription(endpoint)}</p>
+                  <div className="md:text-right">
+                    <Button type="button" variant={activeEndpointId === endpoint.id ? "secondary" : "outline"} size="sm" onClick={() => setActiveEndpointId((current) => current === endpoint.id ? null : endpoint.id)}>
+                      {activeEndpointId === endpoint.id ? <ChevronUp className="size-3.5" /> : <Play className="size-3.5" />}
+                      {activeEndpointId === endpoint.id ? "Close" : "Execute"}
+                    </Button>
+                  </div>
+                  {activeEndpointId === endpoint.id && <div className="min-w-0 md:col-span-4">
+                    <ApiExecutionPanel endpoint={endpoint} execute={execute} result={result} error={result?.endpoint === endpoint.id ? error : null} isRunning={isRunning} />
+                  </div>}
                 </article>
               ))}
             </div>

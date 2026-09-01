@@ -14,13 +14,37 @@ export type OpenApiParameter = {
   };
 };
 
+type OpenApiSchema = {
+  $ref?: string;
+  type?: string;
+  format?: string;
+  default?: unknown;
+  example?: unknown;
+  enum?: unknown[];
+  properties?: Record<string, OpenApiSchema>;
+  items?: OpenApiSchema;
+  anyOf?: OpenApiSchema[];
+  oneOf?: OpenApiSchema[];
+  allOf?: OpenApiSchema[];
+};
+
+type OpenApiMediaType = {
+  schema?: OpenApiSchema;
+  example?: unknown;
+};
+
+type OpenApiRequestBody = {
+  required?: boolean;
+  content?: Record<string, OpenApiMediaType>;
+};
+
 type OpenApiOperation = {
   tags?: string[];
   summary?: string;
   description?: string;
   operationId?: string;
   parameters?: OpenApiParameter[];
-  requestBody?: unknown;
+  requestBody?: OpenApiRequestBody;
 };
 
 export type OpenApiDocument = {
@@ -29,6 +53,9 @@ export type OpenApiDocument = {
     version?: string;
   };
   paths: Record<string, Partial<Record<HttpMethod, OpenApiOperation>>>;
+  components?: {
+    schemas?: Record<string, OpenApiSchema>;
+  };
 };
 
 export type ApiEndpoint = {
@@ -41,6 +68,8 @@ export type ApiEndpoint = {
   operationId: string;
   parameters: OpenApiParameter[];
   hasBody: boolean;
+  requestBodyRequired?: boolean;
+  requestBodyTemplate?: string;
 };
 
 export type ApiResult = {
@@ -60,7 +89,123 @@ export const SETUP_ENDPOINTS = {
   powerBiSessionStatus: "GET /api/v1/auth/microsoft/device/{session_id}/status",
   powerBiStatus: "GET /api/v1/auth/microsoft/device/status",
   powerBiLogout: "POST /api/v1/auth/microsoft/device/logout",
+  powerBiServicePrincipalConnect: "POST /api/v1/auth/microsoft/service-principal/session",
+  powerBiServicePrincipalStatus: "GET /api/v1/auth/microsoft/service-principal/session/status",
+  powerBiServicePrincipalLogout: "DELETE /api/v1/auth/microsoft/service-principal/session",
 };
+
+export const SETUP_ENDPOINT_DEFINITIONS: ApiEndpoint[] = [
+  {
+    id: SETUP_ENDPOINTS.powerBiStart,
+    method: "post",
+    path: "/api/v1/auth/microsoft/device/start",
+    tag: "Authentication",
+    summary: "Start Microsoft device authentication",
+    description: "Starts the Microsoft device-code flow for Power BI and Fabric.",
+    operationId: "start_microsoft_device_authentication",
+    parameters: [],
+    hasBody: true,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiSessionStatus,
+    method: "get",
+    path: "/api/v1/auth/microsoft/device/{session_id}/status",
+    tag: "Authentication",
+    summary: "Get Microsoft device authentication status",
+    description: "Checks the status of a specific device-code session.",
+    operationId: "get_microsoft_device_authentication_status",
+    parameters: [{ name: "session_id", in: "path", required: true }],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiStatus,
+    method: "get",
+    path: "/api/v1/auth/microsoft/device/status",
+    tag: "Authentication",
+    summary: "Get Microsoft device authentication status",
+    description: "Checks the authenticated browser session.",
+    operationId: "get_microsoft_device_auth_status",
+    parameters: [],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiLogout,
+    method: "post",
+    path: "/api/v1/auth/microsoft/device/logout",
+    tag: "Authentication",
+    summary: "Logout Microsoft device session",
+    description: "Clears the Microsoft device-code session.",
+    operationId: "logout_microsoft_device_session",
+    parameters: [],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiServicePrincipalConnect,
+    method: "post",
+    path: "/api/v1/auth/microsoft/service-principal/session",
+    tag: "Authentication",
+    summary: "Authenticate Microsoft service principal",
+    description: "Creates a Power BI and Fabric application-token session using a client secret.",
+    operationId: "authenticate_microsoft_service_principal",
+    parameters: [],
+    hasBody: true,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiServicePrincipalStatus,
+    method: "get",
+    path: "/api/v1/auth/microsoft/service-principal/session/status",
+    tag: "Authentication",
+    summary: "Get Microsoft service principal status",
+    description: "Checks Power BI and Fabric application-token availability.",
+    operationId: "get_microsoft_service_principal_status",
+    parameters: [],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.powerBiServicePrincipalLogout,
+    method: "delete",
+    path: "/api/v1/auth/microsoft/service-principal/session",
+    tag: "Authentication",
+    summary: "Logout Microsoft service principal",
+    description: "Clears the Microsoft application-token session.",
+    operationId: "logout_microsoft_service_principal",
+    parameters: [],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.databaseConnect,
+    method: "post",
+    path: "/api/v1/auth/snowflake/session",
+    tag: "Authentication",
+    summary: "Authenticate Snowflake",
+    description: "Creates a Snowflake authentication session.",
+    operationId: "authenticate_snowflake",
+    parameters: [],
+    hasBody: true,
+  },
+  {
+    id: SETUP_ENDPOINTS.databaseStatus,
+    method: "get",
+    path: "/api/v1/auth/snowflake/session/status",
+    tag: "Authentication",
+    summary: "Snowflake authentication status",
+    description: "Checks the Snowflake browser session.",
+    operationId: "snowflake_authentication_status",
+    parameters: [],
+    hasBody: false,
+  },
+  {
+    id: SETUP_ENDPOINTS.databaseLogout,
+    method: "delete",
+    path: "/api/v1/auth/snowflake/session",
+    tag: "Authentication",
+    summary: "Logout Snowflake",
+    description: "Clears the Snowflake browser session.",
+    operationId: "logout_snowflake",
+    parameters: [],
+    hasBody: false,
+  },
+];
 
 export const DEFAULT_REQUEST_BODIES: Record<string, string> = {
   [SETUP_ENDPOINTS.databaseConnect]: JSON.stringify(
@@ -79,6 +224,11 @@ export const DEFAULT_REQUEST_BODIES: Record<string, string> = {
   ),
   [SETUP_ENDPOINTS.powerBiStart]: JSON.stringify(
     { tenant_id: "", client_id: "" },
+    null,
+    2,
+  ),
+  [SETUP_ENDPOINTS.powerBiServicePrincipalConnect]: JSON.stringify(
+    { tenant_id: "", client_id: "", client_secret: "" },
     null,
     2,
   ),
@@ -170,6 +320,10 @@ export function flattenEndpoints(openApi: OpenApiDocument | undefined) {
             operationId: operation.operationId ?? `${method}_${path}`,
             parameters: operation.parameters ?? [],
             hasBody: Boolean(operation.requestBody),
+            requestBodyRequired: operation.requestBody?.required,
+            requestBodyTemplate: operation.requestBody
+              ? buildRequestBodyTemplate(openApi, operation.requestBody)
+              : undefined,
           } satisfies ApiEndpoint,
         ];
       }),
@@ -178,6 +332,69 @@ export function flattenEndpoints(openApi: OpenApiDocument | undefined) {
       const tagOrder = first.tag.localeCompare(second.tag);
       return tagOrder || first.path.localeCompare(second.path);
     });
+}
+
+function buildRequestBodyTemplate(document: OpenApiDocument, requestBody: OpenApiRequestBody) {
+  const mediaType = requestBody.content?.["application/json"]
+    ?? Object.values(requestBody.content ?? {})[0];
+  const example = mediaType?.example
+    ?? (mediaType?.schema ? exampleForSchema(document, mediaType.schema, new Set()) : {});
+
+  return JSON.stringify(example ?? {}, null, 2);
+}
+
+function exampleForSchema(
+  document: OpenApiDocument,
+  schema: OpenApiSchema,
+  visitedReferences: Set<string>,
+): unknown {
+  if (schema.example !== undefined) return schema.example;
+  if (schema.default !== undefined) return schema.default;
+  if (schema.enum?.length) return schema.enum[0];
+
+  if (schema.$ref) {
+    if (visitedReferences.has(schema.$ref)) return {};
+    const referencedSchema = resolveSchemaReference(document, schema.$ref);
+    if (!referencedSchema) return {};
+    const nextVisited = new Set(visitedReferences);
+    nextVisited.add(schema.$ref);
+    return exampleForSchema(document, referencedSchema, nextVisited);
+  }
+
+  if (schema.allOf?.length) {
+    return schema.allOf.reduce<Record<string, unknown>>((combined, item) => {
+      const value = exampleForSchema(document, item, visitedReferences);
+      return typeof value === "object" && value !== null && !Array.isArray(value)
+        ? { ...combined, ...(value as Record<string, unknown>) }
+        : combined;
+    }, {});
+  }
+
+  const option = [...(schema.oneOf ?? []), ...(schema.anyOf ?? [])]
+    .find((item) => item.type !== "null");
+  if (option) return exampleForSchema(document, option, visitedReferences);
+
+  if (schema.type === "object" || schema.properties) {
+    return Object.fromEntries(
+      Object.entries(schema.properties ?? {}).map(([name, property]) => [
+        name,
+        exampleForSchema(document, property, visitedReferences),
+      ]),
+    );
+  }
+  if (schema.type === "array") {
+    return schema.items ? [exampleForSchema(document, schema.items, visitedReferences)] : [];
+  }
+  if (schema.type === "boolean") return false;
+  if (schema.type === "integer" || schema.type === "number") return 0;
+  return "";
+}
+
+function resolveSchemaReference(document: OpenApiDocument, reference: string) {
+  const prefix = "#/components/schemas/";
+  if (!reference.startsWith(prefix)) return undefined;
+  const name = decodeURIComponent(reference.slice(prefix.length).replace(/~1/g, "/").replace(/~0/g, "~"));
+  return document.components?.schemas?.[name];
 }
 
 export function getParameterDefault(parameter: OpenApiParameter) {
