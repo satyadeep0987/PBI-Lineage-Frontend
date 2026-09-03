@@ -119,6 +119,20 @@ Move-Item `
     -Path $StagingPath `
     -Destination $ReleasePath
 
+# Staging no longer exists after promotion.
+$IndexFile = Join-Path $ReleasePath "index.html"
+$WebConfigFile = Join-Path $ReleasePath "web.config"
+
+if (-not (Test-Path $IndexFile)) {
+    throw "Promoted release has no index.html."
+}
+
+if (-not (Test-Path $WebConfigFile)) {
+    throw "Promoted release has no web.config."
+}
+
+Write-Host "Promoted release validation passed."
+
 Write-Host "Release staged successfully:"
 Write-Host $ReleasePath
 
@@ -206,6 +220,15 @@ try {
     # --------------------------------------------------------
     # Record deployed version
     # --------------------------------------------------------
+
+    $FrontendResponse = Invoke-WebRequest `
+        -Uri "http://127.0.0.1/" `
+        -UseBasicParsing `
+        -TimeoutSec 15
+
+    if ($FrontendResponse.StatusCode -ne 200) {
+        throw "Local frontend HTTP validation failed."
+    }
 
     Set-Content `
         -Path $CurrentReleaseFile `
@@ -313,4 +336,5 @@ Write-Host ""
 Write-Host "========================================="
 Write-Host "Frontend deployment completed successfully"
 Write-Host "Release: $ReleaseId"
+Write-Host "DEPLOYMENT_RESULT=SUCCESS"
 Write-Host "========================================="

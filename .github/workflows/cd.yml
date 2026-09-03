@@ -39,13 +39,16 @@ jobs:
 
     environment:
       name: production
-      url: ${{ vars.PRODUCTION_URL }}
+      url: https://lvpowerbilineage.com
 
     env:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_VM_NAME: ${{ vars.AZURE_VM_NAME }}
+
       STORAGE_ACCOUNT_NAME: ${{ vars.STORAGE_ACCOUNT_NAME }}
       STORAGE_CONTAINER_NAME: ${{ vars.FRONTEND_CONTAINER_NAME }}
+
+      IIS_SITE_NAME: PBI-Lineage
 
     steps:
       - name: Resolve release SHA
@@ -63,7 +66,6 @@ jobs:
           fi
 
           echo "RELEASE_SHA=$SHA" >> "$GITHUB_ENV"
-          echo "Release SHA: $SHA"
 
       - name: Checkout release
         uses: actions/checkout@v4
@@ -85,17 +87,8 @@ jobs:
       - name: Validate production artifact
         shell: bash
         run: |
-          test -f build/client/index.html || {
-            echo "index.html not found"
-            exit 1
-          }
-
-          test -f build/client/web.config || {
-            echo "web.config not found"
-            exit 1
-          }
-
-          echo "Frontend artifact validation passed."
+          test -f build/client/index.html
+          test -f build/client/web.config
 
       - name: Create deployment ZIP
         shell: bash
@@ -106,9 +99,12 @@ jobs:
           zip -r "../../${ARTIFACT_NAME}" .
           cd ../..
 
-          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" \
+            >> "$GITHUB_ENV"
 
-          ls -lh "${ARTIFACT_NAME}"
+          echo \
+            "VM_ARTIFACT_PATH=C:\\pbi-lineage\\artifacts\\${ARTIFACT_NAME}" \
+            >> "$GITHUB_ENV"
 
       - name: Login to Azure using OIDC
         uses: azure/login@v3
@@ -128,26 +124,79 @@ jobs:
             --auth-mode login \
             --overwrite true
 
-      - name: Deploy frontend to Azure VM
+      - name: Download artifact on VM
         shell: bash
         run: |
-          echo "Frontend VM deployment will be enabled"
-          echo "after the Windows VM bootstrap and managed"
-          echo "identity storage access are configured."
+          OUTPUT=$(az vm run-command invoke \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_VM_NAME" \
+            --command-id RunPowerShellScript \
+            --scripts \
+              "@.azure/scripts/download-frontend-artifact.ps1" \
+            --parameters \
+              "StorageAccountName=$STORAGE_ACCOUNT_NAME" \
+              "ContainerName=$STORAGE_CONTAINER_NAME" \
+              "ArtifactName=$ARTIFACT_NAME" \
+              "DestinationPath=$VM_ARTIFACT_PATH" \
+            --query "value[].message" \
+            --output tsv)
 
-          echo "Artifact:"
-          echo "$ARTIFACT_NAME"
+          echo "$OUTPUT"
 
-          #
-          # The final az vm run-command invocation
-          # will be enabled during the VM bootstrap phase.
-          #
+          if ! echo "$OUTPUT" |
+            grep -q "DOWNLOAD_RESULT=SUCCESS"; then
+            echo "VM artifact download failed."
+            exit 1
+          fi
+
+      - name: Deploy frontend on IIS
+        shell: bash
+        run: |
+          OUTPUT=$(az vm run-command invoke \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_VM_NAME" \
+            --command-id RunPowerShellScript \
+            --scripts \
+              "@.azure/scripts/deploy-frontend.ps1" \
+            --parameters \
+              "ArtifactZipPath=$VM_ARTIFACT_PATH" \
+              "ReleaseId=$RELEASE_SHA" \
+              "SiteName=$IIS_SITE_NAME" \
+            --query "value[].message" \
+            --output tsv)
+
+          echo "$OUTPUT"
+
+          if ! echo "$OUTPUT" |
+            grep -q "DEPLOYMENT_RESULT=SUCCESS"; then
+            echo "Frontend deployment failed."
+            exit 1
+          fi
+
+      - name: Public frontend smoke test
+        shell: bash
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 3 \
+            https://lvpowerbilineage.com/ \
+            > /dev/null
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 3 \
+            https://lvpowerbilineage.com/api/v1/health/live \
+            > /dev/null
 
       - name: Deployment summary
         shell: bash
         run: |
-          echo "Frontend artifact prepared:"
-          echo "$ARTIFACT_NAME"
-
-          echo "Release:"
-          echo "$RELEASE_SHA"
+          echo "Frontend deployment successful."
+          echo "Release: $RELEASE_SHA"
+          echo "Artifact: $ARTIFACT_NAME"
