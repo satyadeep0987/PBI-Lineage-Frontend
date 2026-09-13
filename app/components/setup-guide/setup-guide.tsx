@@ -95,7 +95,7 @@ export function SetupGuide() {
                 Begin with prerequisites
                 <ArrowRight className="size-4" />
               </Button>
-              <Button nativeButton={false} variant="outline" render={<Link to="/overview" />}>
+              <Button nativeButton={false} variant="outline" render={<Link to="/" />}>
                 View overview
               </Button>
             </div>
@@ -312,7 +312,7 @@ export function SetupGuide() {
             number="04"
             icon={Snowflake}
             title="Configure optional Snowflake access"
-            description="Snowflake is needed only for live Snowflake enrichment and deep table or column lineage. Power BI inventory and semantic analysis can be used without it."
+            description="Snowflake is the currently implemented optional database connector for live source enrichment and deep table or column lineage. The Database setup area is designed to support additional providers over time, and Power BI inventory can be used without a database session."
           >
             <Subheading title="Choose an authentication method" />
             <div className="grid gap-4 sm:grid-cols-2">
@@ -440,7 +440,7 @@ export function SetupGuide() {
               <ApplicationStep number="7" title="Run Scanner deliberately" text="Choose a small workspace scope first, wait for completion, then inspect the full administrative inventory." />
             </ol>
             <div className="flex flex-wrap gap-3">
-              <Button nativeButton={false} variant="outline" render={<Link to="/overview" />}>
+              <Button nativeButton={false} variant="outline" render={<Link to="/" />}>
                 Open overview
               </Button>
               <Button nativeButton={false} render={<Link to="/workspace/power-bi" />}>

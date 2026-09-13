@@ -3,14 +3,15 @@
 ## Application flow
 
 ```
-Setup Guide
-  -> Microsoft/Fabric/Scanner/Snowflake/backend prerequisites
-  -> Overview
+Home
+  -> Setup Guide from the header, footer, or workspace menu
+       -> Microsoft/Fabric/Scanner/current database connector/backend prerequisites
+  -> Start
   -> Power BI setup
        -> device-code session OR service-principal session
        -> Power BI and Fabric readiness
   -> Database setup
-       -> optional Snowflake session
+       -> optional source-system session (currently Snowflake)
   -> Explorer
        -> workspace -> report or semantic model
        -> report detail / semantic objects / mappings / diagrams
@@ -28,7 +29,7 @@ Setup Guide
 ## Static Setup Guide
 
 `app/routes/setup-guide.tsx` and
-`app/components/setup-guide/setup-guide.tsx` make `/` the first-run route.
+`app/components/setup-guide/setup-guide.tsx` render `/setup-guide`.
 The guide performs no provider requests. It documents responsible roles,
 device-code/service-principal/browser-SSO choices, the exact delegated scopes
 requested by this backend, Scanner tenant settings, optional XMLA, all four
@@ -36,6 +37,15 @@ supported Snowflake authentication methods, backend `.env` policy, IIS/Vite
 connectivity, the ordered in-app workflow, verification, troubleshooting, and
 official Microsoft/Snowflake references. Wide tables and code examples scroll
 inside their containers rather than widening mobile pages.
+
+## Home
+
+`app/routes/home.tsx` renders `/` as a database-neutral product overview. It
+uses a tested Report Lineage workspace capture, explains the investigation
+questions and evidence path at a high level, and contains one primary Start
+action to Power BI setup. Navigation links stay in the shared header and
+footer. Home disables the backend health query because no connection is needed
+to read the overview.
 
 ## Authentication and session behavior
 

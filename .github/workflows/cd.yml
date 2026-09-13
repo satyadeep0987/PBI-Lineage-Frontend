@@ -221,13 +221,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          SCRIPT_PATH=".azure/scripts/deploy-frontend-from-acr.ps1"
+
+          if [ ! -f "$SCRIPT_PATH" ]; then
+            echo "Deployment script not found: $SCRIPT_PATH"
+            exit 1
+          fi
+
+          SCRIPT_CONTENT="$(cat "$SCRIPT_PATH")"
+
           OUTPUT="$(
             az vm run-command invoke \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --name "$AZURE_VM_NAME" \
               --command-id RunPowerShellScript \
-              --scripts \
-                "@.azure/scripts/deploy-frontend-from-acr.ps1" \
+              --scripts "$SCRIPT_CONTENT" \
               --parameters \
                 "AcrName=$ACR_NAME" \
                 "Repository=$ACR_REPOSITORY" \
@@ -237,7 +245,14 @@ jobs:
               --output tsv
           )"
 
+          RUN_COMMAND_EXIT_CODE=$?
+
           printf '%s\n' "$OUTPUT"
+
+          if [ "$RUN_COMMAND_EXIT_CODE" -ne 0 ]; then
+            echo "Azure VM Run Command failed."
+            exit "$RUN_COMMAND_EXIT_CODE"
+          fi
 
           if ! printf '%s' "$OUTPUT" |
             grep -q "DEPLOYMENT_RESULT=SUCCESS"
@@ -245,6 +260,8 @@ jobs:
             echo "Frontend deployment did not report success."
             exit 1
           fi
+
+          echo "Frontend VM deployment completed successfully."
 
       - name: Public frontend smoke test
         shell: bash
