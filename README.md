@@ -119,6 +119,258 @@ npm.cmd ci
 npm.cmd run dev
 ```
 
+## New Windows PC Setup Using Command Prompt Only
+
+This procedure is for a clean Windows computer where only `cmd.exe` is
+available. Keep the backend and frontend in separate folders and separate Git
+repositories. The examples use `C:\Projects`; choose another writable location
+when required by your organization.
+
+### 1. Open Command Prompt
+
+Open a normal Command Prompt. Use **Run as administrator** only when software
+installation or IIS configuration requires it. Confirm that the shell is CMD:
+
+```bat
+echo %COMSPEC%
+```
+
+The result should normally be `C:\Windows\System32\cmd.exe`.
+
+### 2. Install Git and Node.js
+
+First check whether the tools are already installed:
+
+```bat
+where git
+git --version
+where node
+node --version
+where npm
+npm --version
+```
+
+If Git or Node.js is missing and Windows Package Manager is available, open an
+administrator Command Prompt and run:
+
+```bat
+winget install --id Git.Git -e --source winget
+winget install --id OpenJS.NodeJS.LTS -e --source winget
+```
+
+Close every Command Prompt window after installation, open a new one, and run
+the version checks again. Node.js includes npm. Do not install npm separately.
+The frontend was validated with Node.js `v24.19.0` and npm `11.17.0`; use the
+current Node.js LTS release or the version required by `package.json`.
+
+If Node.js is installed but is not found in the current CMD session, test it
+with a temporary PATH update:
+
+```bat
+set "PATH=C:\Program Files\nodejs;%PATH%"
+node --version
+npm --version
+```
+
+Ask the machine administrator to correct the system PATH if this temporary
+command is necessary after every login.
+
+### 3. Create Separate Project Folders
+
+```bat
+mkdir C:\Projects 2>nul
+cd /d C:\Projects
+```
+
+The expected layout is:
+
+```text
+C:\Projects\PBI-Lineage-Backend
+C:\Projects\PBI-Lineage-Frontend
+```
+
+Do not place one repository inside the other. This keeps dependencies, build
+artifacts, commits, branches, and deployments independent.
+
+### 4. Clone Both Repositories
+
+Replace the two placeholder URLs with the actual backend and frontend Git URLs:
+
+```bat
+cd /d C:\Projects
+git clone <BACKEND_REPOSITORY_URL> PBI-Lineage-Backend
+git clone <FRONTEND_REPOSITORY_URL> PBI-Lineage-Frontend
+```
+
+Verify that each folder has its own Git repository:
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Backend
+git status
+cd /d C:\Projects\PBI-Lineage-Frontend
+git status
+```
+
+If the repositories were supplied as approved ZIP files instead, extract them
+to the two paths above. Cloning is preferred because it preserves source-control
+history and makes later updates straightforward.
+
+### 5. Start and Verify the Backend
+
+Set up and start FastAPI by following the backend repository's README. The
+frontend expects the local backend to be reachable at `127.0.0.1:8000`. When the
+backend is supplied as a Docker Compose deployment, run its documented Compose
+command from the backend folder; do not assume a generic Compose command if the
+backend README specifies profiles, environment files, or secrets.
+
+Verify the backend from CMD before starting the frontend:
+
+```bat
+curl.exe -I http://127.0.0.1:8000/docs
+curl.exe http://127.0.0.1:8000/api/v1/health
+```
+
+An HTTP response from `/docs` confirms that the web server is reachable. The
+health command should return the backend health payload. If either command
+fails, resolve the backend container, port, environment, or firewall issue
+before troubleshooting React.
+
+### 6. Install Frontend Dependencies
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Frontend
+npm ci
+```
+
+`npm ci` installs the exact versions in `package-lock.json` and is the correct
+command for a newly cloned repository. Do not run the individual `npm install`
+commands used during initial project creation. Those packages are already
+declared in `package.json` and locked in `package-lock.json`.
+
+Playwright is optional for normal application use. Install its Chromium browser
+only on a development or test machine:
+
+```bat
+npx playwright install chromium
+```
+
+### 7. Configure the Backend Address
+
+No frontend `.env` file is required when FastAPI runs on the same computer at
+`http://127.0.0.1:8000`. Vite proxies API, OpenAPI, and documentation requests to
+that address during development.
+
+For a temporary custom backend origin in the current CMD window, run:
+
+```bat
+set "VITE_API_ORIGIN=http://SERVER_NAME_OR_IP:8000"
+```
+
+Then start Vite from that same window. A backend on another origin must allow
+the frontend origin through CORS and must use compatible authentication-cookie
+settings. Never place passwords, client secrets, tokens, session IDs, or API
+keys in this variable or in a committed file.
+
+Clear the temporary value with:
+
+```bat
+set VITE_API_ORIGIN=
+```
+
+### 8. Start the Frontend
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Frontend
+npm run dev
+```
+
+Wait until Vite prints its Local URL. Initial dependency optimization can take
+time on a new machine. Keep this CMD window open while using the development
+server, then open the application from another CMD window:
+
+```bat
+start "" http://localhost:5173
+```
+
+Stop the server by focusing its CMD window and pressing `Ctrl+C`, then answer
+`Y` if CMD asks whether to terminate the batch job.
+
+### 9. Validate the Installation
+
+Run these commands from the frontend folder. Stop the development server before
+running the production build.
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Frontend
+npm run typecheck
+npm run build
+npx playwright test
+```
+
+Playwright testing requires the browser installed in step 6. The production
+frontend is generated in:
+
+```text
+C:\Projects\PBI-Lineage-Frontend\build\client
+```
+
+For IIS deployment, publish `build\client` and follow the IIS Setup section of
+this README. `npm run dev` is a development process and must not be used as the
+production web server.
+
+### 10. Pull and Run a Later Version
+
+Commit or preserve any intentional local work before updating. Then run:
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Backend
+git pull
+cd /d C:\Projects\PBI-Lineage-Frontend
+git pull
+npm ci
+npm run typecheck
+npm run build
+```
+
+Restart the backend according to its README and restart the frontend or update
+the IIS site files as appropriate. Pulling one repository does not modify the
+other repository.
+
+### CMD-Only Diagnostics
+
+Check whether the expected ports are listening:
+
+```bat
+netstat -ano | findstr :8000
+netstat -ano | findstr :5173
+```
+
+Check which program owns a PID returned by `netstat`:
+
+```bat
+tasklist /FI "PID eq REPLACE_WITH_PID"
+```
+
+Check the frontend files and installed dependency tree:
+
+```bat
+cd /d C:\Projects\PBI-Lineage-Frontend
+dir
+npm ls --depth=0
+```
+
+Check the Vite page and proxied backend health without opening a browser:
+
+```bat
+curl.exe -I http://localhost:5173
+curl.exe http://localhost:5173/api/v1/health
+```
+
+When `npm run dev` appears stuck at `bundling dependencies`, leave the process
+running and wait for the first optimization pass. On a clean machine this can
+take longer because Vite is creating its local cache. Confirm that no separate
+`npm run build` process is changing the build directory at the same time.
+
 ## Environment Configuration
 
 The preferred deployment is same-origin: IIS serves the frontend and proxies
