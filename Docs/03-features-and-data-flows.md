@@ -3,7 +3,9 @@
 ## Application flow
 
 ```
-Home
+Setup Guide
+  -> Microsoft/Fabric/Scanner/Snowflake/backend prerequisites
+  -> Overview
   -> Power BI setup
        -> device-code session OR service-principal session
        -> Power BI and Fabric readiness
@@ -22,6 +24,18 @@ Home
        -> authenticated execution
        -> response body and headers
 ```
+
+## Static Setup Guide
+
+`app/routes/setup-guide.tsx` and
+`app/components/setup-guide/setup-guide.tsx` make `/` the first-run route.
+The guide performs no provider requests. It documents responsible roles,
+device-code/service-principal/browser-SSO choices, the exact delegated scopes
+requested by this backend, Scanner tenant settings, optional XMLA, all four
+supported Snowflake authentication methods, backend `.env` policy, IIS/Vite
+connectivity, the ordered in-app workflow, verification, troubleshooting, and
+official Microsoft/Snowflake references. Wide tables and code examples scroll
+inside their containers rather than widening mobile pages.
 
 ## Authentication and session behavior
 
