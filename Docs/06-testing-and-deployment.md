@@ -14,6 +14,7 @@
 | `npx playwright test tests/report-lineage.spec.ts` | Report Lineage coverage only. |
 | `npx playwright test tests/impact-analysis.spec.ts` | Table and Measure Impact coverage only. |
 | `npx playwright test tests/scanner.spec.ts` | Scanner and Explorer scan-panel coverage only. |
+| `npx playwright test tests/setup-guide.spec.ts` | Setup Guide routing, content, navigation, references, screenshots, and responsive containment only. |
 
 Run FastAPI first and verify `http://127.0.0.1:8000/docs`. Use
 `localhost:5173` consistently for the frontend. Stop the development server
@@ -35,6 +36,8 @@ session:
   evidence notices.
 - `scanner.spec.ts`: scan submission, Running-to-Succeeded polling, result
   browsing, and Explorer's explicit one-workspace enrichment.
+- `setup-guide.spec.ts`: first-route content, authoritative reference links,
+  navigation to Overview/workspace, page errors, and desktop/mobile containment.
 
 Use an authenticated tenant for final provider acceptance. Mocked tests cannot
 prove Power BI/Fabric permissions, XMLA capacity, real scan payload quality, or
@@ -96,7 +99,7 @@ Swagger UI.
 
 ## Verification Checklist
 
-1. `/` loads without a Node process.
+1. `/` loads the Setup Guide and `/overview` loads without a Node process.
 2. Report Lineage, Table Impact, Measure Impact, and Scanner survive hard
    refreshes.
 3. `/api/v1/health/live` and `/openapi.json` return through IIS.

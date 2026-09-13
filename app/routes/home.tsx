@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BadgeCheck,
   BetweenHorizontalStart,
+  BookOpenCheck,
   Braces,
   Clock3,
   Database,
@@ -21,7 +22,7 @@ import { Button } from "~/components/ui/button";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "PBI Lineage Explorer" },
+    { title: "Overview | PBI Lineage Explorer" },
     {
       name: "description",
       content: "Trace Power BI assets from physical data source to downstream report impact.",
@@ -79,11 +80,14 @@ export default function Home() {
                 PBI Lineage Explorer turns scattered metadata into a connected view of databases, semantic models, DAX, reports, and downstream impact. Teams spend minutes finding answers that once took hours of manual investigation.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button nativeButton={false} size="lg" render={<Link to="/workspace/power-bi" />}>
-                  Start setup
+                <Button nativeButton={false} size="lg" render={<Link to="/" />}>
+                  <BookOpenCheck className="size-4" />
+                  Read setup guide
+                </Button>
+                <Button nativeButton={false} size="lg" variant="outline" render={<Link to="/workspace/power-bi" />}>
+                  Open setup
                   <ArrowRight className="size-4" />
                 </Button>
-                <span className="text-sm text-zinc-500">Begin with Power BI authentication</span>
               </div>
             </div>
 
@@ -128,8 +132,8 @@ export default function Home() {
                 <p className="text-sm font-semibold text-cyan-400">A guided start</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-normal">From connection to impact in four steps.</h2>
               </div>
-              <Button nativeButton={false} variant="secondary" render={<Link to="/workspace/power-bi" />}>
-                Open workspace
+              <Button nativeButton={false} variant="secondary" render={<Link to="/" />}>
+                Review prerequisites
                 <ArrowRight className="size-4" />
               </Button>
             </div>

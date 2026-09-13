@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  BookOpenCheck,
   CheckCircle2,
   CircleAlert,
   Loader2,
@@ -8,6 +9,7 @@ import {
 import { Link } from "react-router";
 
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { useAppStore } from "~/stores/app-store";
 
@@ -35,7 +37,7 @@ export function AppHeader() {
   return (
     <header className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex min-h-16 max-w-screen-2xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex min-w-0 items-center gap-3">
+        <Link to="/overview" className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-[8px] bg-zinc-950 text-white">
             <Workflow className="size-5" />
           </span>
@@ -49,7 +51,16 @@ export function AppHeader() {
           </span>
         </Link>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            nativeButton={false}
+            variant="ghost"
+            size="sm"
+            render={<Link to="/" aria-label="Open setup guide" />}
+          >
+            <BookOpenCheck className="size-4" />
+            <span className="hidden md:inline">Setup guide</span>
+          </Button>
           <Badge
             className={cn(
               "rounded-[8px] border px-2.5 py-1",

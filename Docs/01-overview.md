@@ -10,6 +10,9 @@ and is built for static hosting in IIS.
 
 The frontend turns the backend's API surface into guided operational views:
 
+- Present a static first-run guide for Entra registration, Power BI/Fabric
+  tenant access, Scanner metadata, Snowflake roles/authentication, backend
+  environment policy, and verification before users enter the workspace.
 - Authenticate Power BI and Fabric via Microsoft device code or service
   principal.
 - Create and inspect an optional Snowflake session.
@@ -63,7 +66,7 @@ The two communicate only over HTTP.
 | API catalog | Runtime OpenAPI parser (`app/lib/api-catalog.ts`) | Discovers and groups live FastAPI operations — no generated client. |
 | API generation | Orval (installed, unused) | Available for a future generated client; nothing generated is committed. |
 | Unit tests | Vitest + React Testing Library (installed, unused) | Dependencies ready; no unit suites committed yet. |
-| E2E | Playwright | API workbench, report-lineage, impact-analysis, and scanner coverage. |
+| E2E | Playwright | Setup Guide, API workbench, report-lineage, impact-analysis, and scanner coverage. |
 | Production frontend | IIS static site on Windows Azure VM | Versioned releases, SPA fallback, and API reverse proxy. |
 | Production backend | Windows Docker deployment on the same VM | FastAPI built and operated independently behind IIS. |
 

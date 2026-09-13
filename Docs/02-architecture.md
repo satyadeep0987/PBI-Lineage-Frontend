@@ -10,18 +10,19 @@ PBI-Lineage-Frontend/
 |-- Docs/                          Focused contributor documentation
 |-- app/
 |   |-- components/
+|   |   |-- setup-guide/           Static first-run setup handbook
 |   |   |-- ui/                    Reachable shadcn/Base UI primitives
 |   |   |-- workspace/             Setup, Explorer, lineage, impact, scanner, API docs
 |   |   |-- app-header.tsx         Product identity and backend health
 |   |   `-- app-footer.tsx         Attribution and copyright
 |   |-- lib/                       OpenAPI, requests, queries, lineage, scanner, exports
-|   |-- routes/                    Home and shared workspace shell
+|   |-- routes/                    Setup Guide, Overview, and shared workspace shell
 |   |-- stores/app-store.ts        API origin and ephemeral admin key
 |   |-- app.css                    Tailwind, font, theme tokens, global rules
 |   |-- root.tsx                   HTML shell, query provider, error boundary
 |   `-- routes.ts                  React Router Framework Mode route table
 |-- public/                        Favicon and IIS web.config copied into build/client
-|-- tests/                         Playwright API, report, impact, and scanner specs
+|-- tests/                         Playwright setup, API, report, impact, and scanner specs
 `-- root build/tool configuration
 ```
 
@@ -31,12 +32,16 @@ See [05-file-reference.md](05-file-reference.md) for each maintained file.
 
 ## Routing
 
-`app/routes.ts` declares only:
+`app/routes.ts` declares:
 
 ```ts
-index("routes/home.tsx")
+index("routes/setup-guide.tsx")
+route("overview", "routes/home.tsx")
 route("workspace/:section?", "routes/workspace.tsx")
 ```
+
+The index is a static prerequisite handbook and does not load OpenAPI or
+provider data. Overview remains a separate product-information route.
 
 All operational views share `app/routes/workspace.tsx`; `:section` is a view
 switch, not a nested route tree. The shell owns:
@@ -49,7 +54,8 @@ switch, not a nested route tree. The shell owns:
 
 | Route | Section | View |
 | --- | --- | --- |
-| `/` | none | Overview |
+| `/` | none | Static Setup Guide |
+| `/overview` | none | Product overview |
 | `/workspace`, `/workspace/power-bi` | `power-bi` | Power BI setup |
 | `/workspace/database` | `database` | Snowflake setup |
 | `/workspace/explorer` | `explorer` | Workspace-scoped Explorer |

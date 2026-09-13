@@ -25,18 +25,20 @@ This page lists maintained source and operational files. Generated
 
 | File | Purpose |
 | --- | --- |
-| `app/routes.ts` | Declares `/` and `/workspace/:section?`. |
+| `app/routes.ts` | Declares the Setup Guide index, `/overview`, and `/workspace/:section?`. |
 | `app/root.tsx` | HTML shell, global CSS, QueryProvider, route outlet, scripts, scroll restoration, and error boundary. |
 | `app/app.css` | Tailwind/shadcn/font imports, design tokens, and global layout rules. |
-| `app/routes/home.tsx` | Product overview, value summary, workflow, and setup entry action. |
+| `app/routes/setup-guide.tsx` | Route metadata and shared shell for the first-run setup handbook. |
+| `app/routes/home.tsx` | `/overview` product value summary, workflow, and setup entry actions. |
 | `app/routes/workspace.tsx` | Shared shell, OpenAPI catalog/executor, sidebar/mobile navigation, and lazy feature routing. |
 
 ## Shared Application Components
 
 | File | Purpose |
 | --- | --- |
-| `app/components/app-header.tsx` | Product identity and backend health query/badge. |
+| `app/components/app-header.tsx` | Product identity, persistent Setup Guide action, and backend health query/badge. |
 | `app/components/app-footer.tsx` | Developer attribution and current-year copyright on every page. |
+| `app/components/setup-guide/setup-guide.tsx` | Static Microsoft/Fabric/Scanner/XMLA/Snowflake/backend handbook, workflow handoff, troubleshooting, and references. |
 
 ## Workspace Features
 
@@ -97,6 +99,7 @@ Only primitives imported by a current route dependency are retained:
 | `tests/report-lineage.spec.ts` | Report evidence tabs/exports and report, column, and calculation graphs on desktop/mobile. |
 | `tests/impact-analysis.spec.ts` | Workspace scope, searchable table/measure selection, directed/collapsible impact graphs, grids, and degraded evidence. |
 | `tests/scanner.spec.ts` | Scanner submit/poll/result behavior plus dedicated scanner tabs and Explorer enrichment. |
+| `tests/setup-guide.spec.ts` | Index routing, guide content/references, Overview/workspace navigation, page errors, screenshots, and mobile containment. |
 | `REF_DOC/PROJECT_CONTEXT.md` | Local continuity and implementation constraints; ignored by Git unless repository policy changes. |
 
 ## CI/CD And Azure Scripts

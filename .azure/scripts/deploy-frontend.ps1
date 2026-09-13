@@ -119,6 +119,14 @@ Move-Item `
     -Path $StagingPath `
     -Destination $ReleasePath
 
+# The files have moved from staging to the final release directory,
+# so update these paths before validating them.
+$IndexFile = Join-Path $ReleasePath "index.html"
+$WebConfigFile = Join-Path $ReleasePath "web.config"
+
+Write-Host "Release staged successfully:"
+Write-Host $ReleasePath
+
 # Staging no longer exists after promotion.
 $IndexFile = Join-Path $ReleasePath "index.html"
 $WebConfigFile = Join-Path $ReleasePath "web.config"
@@ -333,8 +341,10 @@ foreach ($Directory in $ReleaseDirectories) {
 }
 
 Write-Host ""
+Write-Host ""
 Write-Host "========================================="
 Write-Host "Frontend deployment completed successfully"
 Write-Host "Release: $ReleaseId"
-Write-Host "DEPLOYMENT_RESULT=SUCCESS"
 Write-Host "========================================="
+
+Write-Host "DEPLOYMENT_RESULT=SUCCESS"

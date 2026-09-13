@@ -13,6 +13,9 @@ Developed by **Satyadeep Singh**.
 
 The application turns the backend API surface into guided operational views:
 
+- Read a first-run setup guide covering Microsoft Entra registration, Power BI
+  and Fabric tenant settings, Scanner metadata, Snowflake access, backend
+  environment policy, verification, and official references.
 - Authenticate Power BI and Fabric with a device code or service principal.
 - Create and inspect an optional Snowflake session.
 - Browse Power BI workspaces, reports, and semantic models by name.
@@ -225,12 +228,14 @@ development server, build, and then restart it.
 | `npx playwright test tests/report-lineage.spec.ts` | Run only report-lineage desktop/mobile coverage. |
 | `npx playwright test tests/impact-analysis.spec.ts` | Run only table-impact/measure-impact coverage. |
 | `npx playwright test tests/scanner.spec.ts` | Run only Scanner page and Explorer scan-panel coverage. |
+| `npx playwright test tests/setup-guide.spec.ts` | Run only Setup Guide route, navigation, references, and responsive-containment coverage. |
 
 ## Route Map
 
 | Route | View | Data responsibility |
 | --- | --- | --- |
-| `/` | Overview | Product purpose, value, workflow, and start action. |
+| `/` | Setup Guide | Static first-run prerequisites for Microsoft, Fabric, Scanner, XMLA, Snowflake, backend hosting, and application verification. |
+| `/overview` | Overview | Product purpose, value, workflow, and setup entry action. |
 | `/workspace` | Power BI setup | Default workspace route. |
 | `/workspace/power-bi` | Power BI setup | Device-code and service-principal authentication. |
 | `/workspace/database` | Database setup | Snowflake connection, status, and logout. |
@@ -249,7 +254,11 @@ IIS SPA fallback in production.
 ## Application Flow
 
 ```text
-Home
+Setup Guide
+  -> required roles and authentication choice
+  -> Power BI/Fabric/Scanner/Snowflake prerequisites
+  -> backend environment and hosting checks
+  -> Overview
   -> Power BI setup
        -> device-code session OR service-principal session
        -> Power BI and Fabric readiness
@@ -639,6 +648,8 @@ PBI-Lineage-Frontend/
 |   `-- README.md
 |-- app/
 |   |-- components/
+|   |   |-- setup-guide/
+|   |   |   `-- setup-guide.tsx
 |   |   |-- ui/
 |   |   |   |-- badge.tsx
 |   |   |   |-- button.tsx
@@ -686,6 +697,7 @@ PBI-Lineage-Frontend/
 |   |   `-- utils.ts
 |   |-- routes/
 |   |   |-- home.tsx
+|   |   |-- setup-guide.tsx
 |   |   `-- workspace.tsx
 |   |-- stores/
 |   |   `-- app-store.ts
@@ -699,7 +711,8 @@ PBI-Lineage-Frontend/
 |   |-- api-documentation.spec.ts
 |   |-- impact-analysis.spec.ts
 |   |-- report-lineage.spec.ts
-|   `-- scanner.spec.ts
+|   |-- scanner.spec.ts
+|   `-- setup-guide.spec.ts
 |-- .dockerignore
 |-- .gitignore
 |-- components.json
@@ -744,24 +757,26 @@ PBI-Lineage-Frontend/
 
 | File | Purpose and fulfilled responsibility |
 | --- | --- |
-| `app/routes.ts` | Declares the index route and optional workspace section route in React Router Framework Mode. |
+| `app/routes.ts` | Declares the Setup Guide index, `/overview`, and optional workspace section route in React Router Framework Mode. |
 | `app/root.tsx` | Creates the HTML shell, loads global CSS, installs QueryProvider, renders route outlets/scripts, restores scroll, and handles route errors. |
 | `app/app.css` | Imports Tailwind, shadcn, animation, and Geist font styles; defines light/dark design tokens, radii, and global minimum width. |
-| `app/routes/home.tsx` | Renders the product overview, value/time-saving summary, workflow, and setup entry point. |
+| `app/routes/setup-guide.tsx` | Wraps the static first-run guide with route metadata plus the shared header and footer. |
+| `app/routes/home.tsx` | Renders `/overview`: product value/time-saving summary, workflow, and setup entry points. |
 | `app/routes/workspace.tsx` | Owns the shared workspace shell, OpenAPI query, endpoint catalog, API executor, sidebar routing, mobile navigation, and lazy loading for Explorer, Report Lineage, Table Impact, Measure Impact, and Scanner. |
 
 ### Shared Application Components
 
 | File | Purpose and fulfilled responsibility |
 | --- | --- |
-| `app/components/app-header.tsx` | Renders product identity and a TanStack Query backend-health badge refreshed every 15 seconds. |
+| `app/components/app-header.tsx` | Renders product identity, a persistent Setup Guide action, and a TanStack Query backend-health badge refreshed every 15 seconds. |
 | `app/components/app-footer.tsx` | Renders the mandatory developer attribution and current-year copyright on all pages. |
+| `app/components/setup-guide/setup-guide.tsx` | Renders the static, role-oriented Microsoft/Fabric/Scanner/XMLA/Snowflake/backend setup handbook, ordered application handoff, troubleshooting matrix, and authoritative external references. It performs no provider API calls. |
 
 ### Workspace Components
 
 | File | Purpose and fulfilled responsibility |
 | --- | --- |
-| `app/components/workspace/workspace-sidebar.tsx` | Defines setup, exploration, table/measure-impact, report-lineage, and API-documentation navigation for desktop/mobile shells. |
+| `app/components/workspace/workspace-sidebar.tsx` | Defines Setup Guide, Overview, operational setup, exploration, table/measure-impact, report-lineage, and API-documentation navigation for desktop/mobile shells. |
 | `app/components/workspace/power-bi-setup.tsx` | Validates and executes device-code/service-principal setup, presents provider readiness, clears secrets, and invalidates identity-dependent caches. |
 | `app/components/workspace/database-setup.tsx` | Validates Snowflake connection input and presents connect/status/logout information without raw setup JSON. |
 | `app/components/workspace/explorer.tsx` | Implements workspace-scoped report/model exploration, background heavy queries, AG Grid tables, copy/export, semantic mapping, column/measure diagrams rendered through the shared lineage engine, and an opt-in metadata scan panel for the current workspace's dashboards, app linkage, and ownership. |
@@ -832,6 +847,7 @@ in feature components and primitive behavior/styling here.
 | `tests/impact-analysis.spec.ts` | Mocks a two-workspace, two-model backend fixture and verifies Table Impact's and Measure Impact's workspace-scope multi-select, searchable table/measure picker (including cross-workspace merging and scope narrowing), directed/collapsible diagrams, impact grids, and evidence status. |
 | `tests/scanner.spec.ts` | Mocks the four `/api/v1/scanner/*` endpoints (including a status route that reports "Running" before "Succeeded", proving the poll loop works) against a fixture covering every entity type, and verifies both the dedicated Scanner page's multi-workspace scan-and-browse flow across all five tabs and Explorer's single-workspace scan panel replacing its dashboards/app-linkage/ownership placeholders. |
 | `tests/api-documentation.spec.ts` | Mocks OpenAPI/backend operations and verifies GET/POST execution, JSON validation, response metadata, and output copying behavior. |
+| `tests/setup-guide.spec.ts` | Verifies the guide is the index route, required setup sections and official links render, navigation reaches Overview/workspace, and desktop/mobile layouts remain error-free and contained. |
 | `REF_DOC/PROJECT_CONTEXT.md` | Local continuity document containing current frontend contracts and implementation constraints; ignored by Git. |
 
 ### Local Agent Reference Files
@@ -1014,7 +1030,7 @@ Swagger page publicly.
 
 After IIS deployment verify:
 
-1. `/` loads without a Node process.
+1. `/` loads the Setup Guide without a Node process and `/overview` loads directly.
 2. `/workspace/report-lineage` loads directly after a hard refresh.
 3. `/workspace/table-impact`, `/workspace/measure-impact`, and
    `/workspace/scanner` load directly after hard refreshes.

@@ -28,11 +28,12 @@ handbook.
   client is committed.
 - Production: static `build/client` on IIS, deployed to a Windows Azure VM via
   GitHub OIDC, private Blob Storage, VM Run Command, and versioned releases.
-- Entry points: `app/routes.ts` maps `/` and `/workspace/:section?`.
+- Entry points: `app/routes.ts` maps the Setup Guide at `/`, Overview at
+  `/overview`, and the operational shell at `/workspace/:section?`.
 
 ## Product Summary
 
-The app authenticates Power BI/Fabric, optionally connects Snowflake, explores
+The app begins with a static administrator/operator Setup Guide, authenticates Power BI/Fabric, optionally connects Snowflake, explores
 workspace/report/model evidence, maps semantic objects to physical sources,
 renders report/column/calculation lineage, analyzes table and measure impact,
 runs explicit Power BI Admin metadata scans, provides copy/CSV/Excel output,
