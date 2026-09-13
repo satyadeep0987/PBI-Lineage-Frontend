@@ -10,12 +10,13 @@ and is built for static hosting in IIS.
 
 The frontend turns the backend's API surface into guided operational views:
 
-- Present a static first-run guide for Entra registration, Power BI/Fabric
-  tenant access, Scanner metadata, Snowflake roles/authentication, backend
-  environment policy, and verification before users enter the workspace.
+- Present a static setup guide for Entra registration, Power BI/Fabric tenant
+  access, Scanner metadata, source-system authentication, backend environment
+  policy, and verification from global and workspace navigation.
 - Authenticate Power BI and Fabric via Microsoft device code or service
   principal.
-- Create and inspect an optional Snowflake session.
+- Create and inspect an optional source-system session through the current
+  Snowflake connector.
 - Browse Power BI workspaces, reports, and semantic models by name.
 - Inspect report pages, semantic objects, DAX, source paths, and XMLA
   evidence.
@@ -35,8 +36,8 @@ The frontend turns the backend's API surface into guided operational views:
 
 ## Ownership boundary
 
-The frontend does not own Power BI, Fabric, or Snowflake credentials. It
-forwards them to FastAPI when required (setup forms only) and relies on
+The frontend does not own Power BI, Fabric, or database-provider credentials.
+It forwards them to FastAPI when required (setup forms only) and relies on
 backend-managed HTTP-only session cookies (`credentials: "include"`) for
 every subsequent request. There is no client-side token storage.
 
@@ -66,7 +67,7 @@ The two communicate only over HTTP.
 | API catalog | Runtime OpenAPI parser (`app/lib/api-catalog.ts`) | Discovers and groups live FastAPI operations — no generated client. |
 | API generation | Orval (installed, unused) | Available for a future generated client; nothing generated is committed. |
 | Unit tests | Vitest + React Testing Library (installed, unused) | Dependencies ready; no unit suites committed yet. |
-| E2E | Playwright | Setup Guide, API workbench, report-lineage, impact-analysis, and scanner coverage. |
+| E2E | Playwright | Home, Setup Guide, API workbench, report-lineage, impact-analysis, and scanner coverage. |
 | Production frontend | IIS static site on Windows Azure VM | Versioned releases, SPA fallback, and API reverse proxy. |
 | Production backend | Windows Docker deployment on the same VM | FastAPI built and operated independently behind IIS. |
 
@@ -76,7 +77,8 @@ The two communicate only over HTTP.
   local dev.
 - Node.js + npm on `PATH` (last validated with Node `v24.19.0` / npm `11.17.0`).
 - Power BI/Fabric app registration and permissions expected by the backend.
-- Optional Snowflake connection details.
+- Optional database connection details for the currently implemented
+  Snowflake connector.
 - Playwright browser binaries for browser tests (`npx playwright install chromium`).
 
 See the root [README.md](../README.md) for full install/run instructions,

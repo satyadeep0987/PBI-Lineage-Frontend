@@ -69,10 +69,10 @@ export default function Workspace() {
   function navigateTo(nextSection: string) {
     setMobileNavigationOpen(false);
     if (nextSection === "setup-guide") {
-      navigate("/");
+      navigate("/setup-guide");
       return;
     }
-    navigate(nextSection === "home" ? "/overview" : `/workspace/${nextSection}`);
+    navigate(nextSection === "home" ? "/" : `/workspace/${nextSection}`);
   }
 
   const sidebar = (
