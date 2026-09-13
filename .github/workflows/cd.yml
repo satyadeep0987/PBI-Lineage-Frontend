@@ -263,34 +263,92 @@ jobs:
 
           echo "Frontend VM deployment completed successfully."
 
-      - name: Public frontend smoke test
+      - name: Verify frontend through IIS
         shell: bash
         run: |
           set -euo pipefail
 
-          for attempt in $(seq 1 12); do
+          cat > /tmp/frontend-smoke.ps1 <<'EOF'
+          $ErrorActionPreference = "Stop"
 
-            echo "Smoke test attempt ${attempt}/12"
+          $headers = @{
+              Host = "lvpowerbilineage.com"
+          }
 
-            if curl \
-              --fail \
-              --silent \
-              --show-error \
-              --max-time 30 \
-              "${PRODUCTION_URL}/" \
-              -o frontend-index.html
-            then
+          Write-Output "Testing frontend through IIS..."
 
-              if grep -qi "<html" frontend-index.html; then
-                echo "Frontend smoke test passed."
+          $response = Invoke-WebRequest `
+              -Uri "http://127.0.0.1/" `
+              -Headers $headers `
+              -UseBasicParsing `
+              -TimeoutSec 30
+
+          if ($response.StatusCode -ne 200) {
+              throw "Frontend returned HTTP $($response.StatusCode)."
+          }
+
+          if ($response.Content -notmatch "<html") {
+              throw "Frontend response does not contain HTML."
+          }
+
+          Write-Output "Frontend IIS validation passed."
+          Write-Output "FRONTEND_SMOKE_TEST=SUCCESS"
+          EOF
+
+          SCRIPT_CONTENT="$(cat /tmp/frontend-smoke.ps1)"
+
+          MAX_ATTEMPTS=6
+          WAIT_SECONDS=20
+
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Frontend verification attempt ${attempt}/${MAX_ATTEMPTS}"
+
+            set +e
+
+            OUTPUT="$(
+              az vm run-command invoke \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --name "$AZURE_VM_NAME" \
+                --command-id RunPowerShellScript \
+                --scripts "$SCRIPT_CONTENT" \
+                --query "value[].message" \
+                --output tsv 2>&1
+            )"
+
+            EXIT_CODE=$?
+
+            set -e
+
+            printf '%s\n' "$OUTPUT"
+
+            if [ "$EXIT_CODE" -eq 0 ]; then
+              if printf '%s' "$OUTPUT" |
+                grep -q "FRONTEND_SMOKE_TEST=SUCCESS"
+              then
+                echo "Frontend deployment validation passed."
                 exit 0
+              fi
+
+              echo "Frontend verification did not report success."
+              exit 1
+            fi
+
+            if printf '%s' "$OUTPUT" |
+              grep -qi "Run command extension execution is in progress"
+            then
+              if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+                echo "Azure VM Run Command is busy."
+                echo "Waiting ${WAIT_SECONDS}s..."
+                sleep "$WAIT_SECONDS"
+                continue
               fi
             fi
 
-            sleep 10
+            echo "Frontend verification failed."
+            exit "$EXIT_CODE"
           done
 
-          echo "Frontend smoke test failed."
+          echo "Frontend verification could not acquire Azure Run Command."
           exit 1
 
       - name: Deployment summary
