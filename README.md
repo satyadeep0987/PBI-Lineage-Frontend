@@ -273,6 +273,7 @@ development server, build, and then restart it.
 | `npx playwright test tests/scanner.spec.ts` | Run only Scanner page and Explorer scan-panel coverage. |
 | `npx playwright test tests/app-shell.spec.ts` | Run desktop/tablet/mobile shell, collapsible navigation, and floating Power AI layout coverage. |
 | `npx playwright test tests/power-ai.spec.ts` | Run Power AI status, context, chat transport, evidence, error, and responsive-state coverage. |
+| `npx playwright test tests/column-lineage.spec.ts` | Run Explorer physical column lineage coverage. |
 | `npx playwright test tests/home.spec.ts` | Run only Home content, navigation, product-image, and desktop/mobile UX coverage. |
 | `npx playwright test tests/setup-guide.spec.ts` | Run only Setup Guide route, navigation, references, and responsive-containment coverage. |
 
@@ -393,9 +394,24 @@ Major levels:
 4. Semantic tables, columns, measures, hierarchies, relationships, and DAX.
 5. Database-column to semantic-object mapping.
 6. Column and measure dependency diagrams.
+7. Semantic object to physical column lineage.
 
 Heavy report and semantic-model requests begin after selection and are cached by
 TanStack Query. Tabs reuse prepared data instead of repeating provider calls.
+
+The Physical column lineage tab calls
+`POST /api/v1/workspaces/{workspace_id}/semantic-models/{semantic_model_id}/column-lineage`
+and passes the known `workspaceName` so the backend can skip its own lookup. It
+maps every measure, calculated column, and calculated table through its semantic
+column dependencies to the physical database columns it ultimately reads, using
+the live XMLA engine's own dependency graph and partition query text rather than
+parsed definition text. Because it opens a real XMLA connection, the request is
+only issued when the operator opens that tab, and it fails independently: XMLA
+read access and a permitting capacity are required, and an unavailable
+connection is reported with the backend's own reason instead of blanking the
+view. One grid row is rendered per resolved physical column; a dependency the
+backend could not resolve is kept and marked `Not resolved` rather than dropped
+or inferred.
 
 A report can use a semantic model from another workspace. Never substitute the
 report workspace ID for the model workspace ID unless estate evidence confirms
@@ -971,6 +987,7 @@ packages, so retaining it caused clean-clone and GitHub TypeScript failures.
 | `tests/api-documentation.spec.ts` | Mocks OpenAPI/backend operations and verifies GET/POST execution, JSON validation, response metadata, and output copying behavior. |
 | `tests/app-shell.spec.ts` | Verifies desktop navigation persistence, tablet icon rail behavior, mobile drawers, and the non-resizing floating Power AI overlay. |
 | `tests/power-ai.spec.ts` | Verifies availability states, Power BI auth/permission locks, persona persistence, object context, SSE/non-SSE chat, cancellation, evidence, friendly errors, and responsive conversation continuity. |
+| `tests/column-lineage.spec.ts` | Mocks the semantic-model column-lineage endpoint and verifies that the request is deferred until the tab is opened, that the workspace name is passed, that semantic objects map to physical columns, that unresolved dependencies stay visible and marked, that backend warnings surface, that the table and resolved-only filters narrow rows, and that an unavailable XMLA connection reports the backend's reason instead of blanking. |
 | `tests/home.spec.ts` | Verifies the Home route, single main-content action, database-neutral copy, no Home health request, working product image, shared navigation, and desktop/mobile containment. |
 | `tests/setup-guide.spec.ts` | Verifies `/setup-guide`, required setup sections and official links, navigation to Home/workspace, and desktop/mobile layouts. |
 | `REF_DOC/PROJECT_CONTEXT.md` | Local continuity document containing current frontend contracts and implementation constraints; ignored by Git. |

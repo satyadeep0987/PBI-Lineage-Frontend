@@ -99,12 +99,21 @@ Levels, in order of drill-down:
 4. Semantic tables, columns, measures, hierarchies, relationships, DAX.
 5. Database-column → semantic-object mapping.
 6. Column/measure dependency diagrams (React Flow).
+7. Semantic object → physical column lineage, from live XMLA.
 
 Heavy report/semantic-model requests fire only after selection and are
 cached via `heavyQueryOptions` (`staleTime: 5 min`, `gcTime: 30 min`,
 `retry: false`) so tabs reuse prepared data instead of re-fetching. Domain
 types (`Workspace`, `Report`, `SemanticModel`, `ParsedColumn`, ...) are
 defined locally in the component, matching backend response shapes.
+
+The Physical column lineage tab is the one Explorer request that is deferred
+until its tab is opened, because
+`POST /api/v1/workspaces/{workspace_id}/semantic-models/{semantic_model_id}/column-lineage`
+opens a live XMLA connection. It passes the already-known `workspaceName` so
+the backend can skip its own lookup, renders one row per resolved physical
+column, keeps unresolved dependencies visible and marked rather than dropping
+them, and reports an unavailable XMLA endpoint with the backend's own reason.
 
 **Important invariant**: a report can use a semantic model owned by a
 *different* workspace. Never assume the report's workspace ID applies to its

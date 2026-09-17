@@ -54,13 +54,15 @@ const explorerTheme = themeQuartz.withParams({
   wrapperBorder: false,
 });
 
+const ALL_FILTER = "All";
+
 const heavyQueryOptions = {
   staleTime: 5 * 60 * 1000,
   gcTime: 30 * 60 * 1000,
   retry: false,
 };
 
-type ExplorerTab = "assets" | "report-detail" | "report-semantic" | "semantic-objects" | "column-mapping";
+type ExplorerTab = "assets" | "report-detail" | "report-semantic" | "semantic-objects" | "column-mapping" | "column-lineage";
 type ExportValue = string | number | boolean | null | undefined;
 type ExplorerGridRow = { id: string; [key: string]: ExportValue };
 type ExportContext = Record<string, string>;
@@ -180,6 +182,39 @@ type PhysicalSourceResult = {
   warnings: Array<{ message: string }>;
 };
 
+type PhysicalColumnReference = {
+  source_id: string;
+  provider: string;
+  server?: string | null;
+  database?: string | null;
+  schema_name?: string | null;
+  object_name?: string | null;
+  column_name: string;
+  resolution_method: "native_query_select" | "same_name_assumed";
+  fully_qualified_name: string;
+};
+
+type SemanticColumnLineageRow = {
+  semantic_table?: string | null;
+  semantic_object_type: string;
+  semantic_object_name: string;
+  semantic_dax_expression?: string | null;
+  referenced_semantic_table?: string | null;
+  referenced_semantic_column?: string | null;
+  dependency_depth?: number | null;
+  is_direct_dependency?: boolean | null;
+  physical_columns: PhysicalColumnReference[];
+};
+
+type SemanticModelColumnLineage = {
+  workspace_id: string;
+  semantic_model_id: string;
+  rows: SemanticColumnLineageRow[];
+  warnings: Array<{ code: string; message: string; object_name?: string | null; source_path?: string | null }>;
+  object_count: number;
+  row_count: number;
+};
+
 type WorkspaceResponse = { workspaces: Workspace[] };
 type ReportsResponse = { reports: Report[] };
 type SemanticModelsResponse = { semantic_models: SemanticModel[] };
@@ -191,6 +226,7 @@ const tabs: Array<{ id: ExplorerTab; label: string; shortLabel: string }> = [
   { id: "report-semantic", label: "3. Report visual field lineage", shortLabel: "Report visuals" },
   { id: "semantic-objects", label: "4. Semantic model objects", shortLabel: "Semantic objects" },
   { id: "column-mapping", label: "5. Database column to semantic mapping", shortLabel: "Column mapping" },
+  { id: "column-lineage", label: "6. Semantic object to physical column lineage", shortLabel: "Physical column lineage" },
 ];
 
 export function Explorer() {
@@ -321,6 +357,17 @@ export function Explorer() {
     enabled: Boolean(parsedSemanticModelQuery.data && activeTab === "column-mapping"),
     ...heavyQueryOptions,
   });
+  // Live XMLA lineage: engine-reported dependencies plus resolved physical columns.
+  // Only requested on its own tab because it opens a real XMLA connection.
+  const columnLineageQuery = useQuery({
+    queryKey: ["explorer", "column-lineage", apiOrigin, selectedWorkspaceId, selectedSemanticModelId, selectedWorkspace?.name],
+    queryFn: () => {
+      const query = selectedWorkspace?.name ? `?${new URLSearchParams({ workspaceName: selectedWorkspace.name }).toString()}` : "";
+      return requestJson<SemanticModelColumnLineage>(apiOrigin, `/api/v1/workspaces/${selectedWorkspaceId}/semantic-models/${selectedSemanticModelId}/column-lineage${query}`, { method: "POST" });
+    },
+    enabled: Boolean(selectedWorkspaceId && selectedSemanticModelId && activeTab === "column-lineage"),
+    ...heavyQueryOptions,
+  });
 
   const backgroundPreparing = Boolean(
     selectedReport && (
@@ -366,6 +413,7 @@ export function Explorer() {
         {activeTab === "report-semantic" && <ReportSemanticTab workspace={selectedWorkspace} reports={reports} selectedReport={selectedReport} reportSemanticModel={reportSemanticModel} onReportChange={setSelectedReportId} normalizedQuery={normalizedReportQuery} lineageQuery={reportSemanticLineageQuery} parsed={parsedSemanticModelQuery.data} daxQuery={daxQuery} />}
         {activeTab === "semantic-objects" && <SemanticObjectsTab workspace={selectedWorkspace} selectedReport={selectedReport} semanticModels={semanticModels} selectedSemanticModel={selectedSemanticModel} onSemanticModelChange={setSelectedSemanticModelId} parsedQuery={parsedSemanticModelQuery} daxQuery={daxQuery} metadataQuery={semanticMetadataQuery} />}
         {activeTab === "column-mapping" && <ColumnMappingTab workspace={selectedWorkspace} selectedReport={selectedReport} semanticModels={semanticModels} selectedSemanticModel={selectedSemanticModel} onSemanticModelChange={setSelectedSemanticModelId} parsedQuery={parsedSemanticModelQuery} daxQuery={daxQuery} physicalSourceQuery={physicalSourceQuery} />}
+        {activeTab === "column-lineage" && <ColumnLineageTab workspace={selectedWorkspace} selectedReport={selectedReport} semanticModels={semanticModels} selectedSemanticModel={selectedSemanticModel} onSemanticModelChange={setSelectedSemanticModelId} lineageQuery={columnLineageQuery} />}
       </div>
     </section>
   );
@@ -588,6 +636,130 @@ function ColumnMappingTab({ workspace, selectedReport, semanticModels, selectedS
     {physicalSourceQuery.data && <div><SectionHeading icon={<Database className="size-5" />} title="Detected physical sources" text="Physical provider, database, and object details discovered from semantic partitions." /><ExplorerGrid rowData={sourceRows} columnDefs={[{ field: "provider", headerName: "Provider", minWidth: 180 }, { field: "location", headerName: "Database object", minWidth: 300, flex: 1 }, { field: "kind", headerName: "Kind", minWidth: 140 }]} emptyMessage="No physical sources were detected." exportFileName={`${filePart(selectedSemanticModel?.name)}-physical-sources`} exportContext={context} /></div>}
     {physicalSourceQuery.isError && parsedQuery.data && <div className="border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Physical-source analysis is not enabled for this session. The source-column and DAX evidence above is still available.</div>}
   </div>;
+}
+
+function ColumnLineageTab({ workspace, selectedReport, semanticModels, selectedSemanticModel, onSemanticModelChange, lineageQuery }: {
+  workspace: Workspace | null;
+  selectedReport: Report | null;
+  semanticModels: SemanticModel[];
+  selectedSemanticModel: SemanticModel | null;
+  onSemanticModelChange: (id: string) => void;
+  lineageQuery: UseQueryResult<SemanticModelColumnLineage, Error>;
+}) {
+  const [tableFilter, setTableFilter] = useState(ALL_FILTER);
+  const [objectTypeFilter, setObjectTypeFilter] = useState(ALL_FILTER);
+  const [resolvedOnly, setResolvedOnly] = useState(false);
+  const lineage = lineageQuery.data;
+
+  const allRows = useMemo(() => columnLineageRows(lineage), [lineage]);
+  // Modeled defensively: the payload is shaped by live engine output, so absent collections are treated as empty.
+  const warnings = lineage?.warnings ?? [];
+  const tableNames = useMemo(() => Array.from(new Set(allRows.map((row) => String(row.semanticTable)))).sort(), [allRows]);
+  const objectTypes = useMemo(() => Array.from(new Set(allRows.map((row) => String(row.objectType)))).sort(), [allRows]);
+
+  useEffect(() => {
+    if (tableFilter !== ALL_FILTER && !tableNames.includes(tableFilter)) setTableFilter(ALL_FILTER);
+  }, [tableFilter, tableNames]);
+  useEffect(() => {
+    if (objectTypeFilter !== ALL_FILTER && !objectTypes.includes(objectTypeFilter)) setObjectTypeFilter(ALL_FILTER);
+  }, [objectTypeFilter, objectTypes]);
+
+  const rows = allRows.filter((row) =>
+    (tableFilter === ALL_FILTER || row.semanticTable === tableFilter) &&
+    (objectTypeFilter === ALL_FILTER || row.objectType === objectTypeFilter) &&
+    (!resolvedOnly || row.physicalResolved === "Yes"),
+  );
+  const resolvedCount = allRows.filter((row) => row.physicalResolved === "Yes").length;
+  const context = makeExportContext(workspace, selectedReport, selectedSemanticModel);
+
+  return <div className="space-y-6">
+    <SemanticModelSelector semanticModels={semanticModels} selectedSemanticModel={selectedSemanticModel} onChange={onSemanticModelChange} />
+    <SectionHeading icon={<Database className="size-5" />} title="Semantic object to physical column lineage" text="Every measure, calculated column, and calculated table mapped through its semantic column dependencies to the physical database columns it ultimately reads. Dependencies and partition queries come from the live XMLA engine rather than from parsed definition text." />
+    {lineageQuery.isLoading ? <ExplorerLoading label="Reading engine-reported column lineage over XMLA" /> : null}
+    {lineageQuery.isError ? <ExplorerError text={`Column lineage is unavailable for this model. It needs a live XMLA connection, which requires XMLA read access on a capacity that permits it. Reported reason: ${lineageQuery.error.message}`} /> : null}
+    {lineage && <>
+      <div className="grid border-y border-zinc-200 sm:grid-cols-4">
+        <DetailItem label="Semantic objects" value={String(lineage.object_count ?? "--")} />
+        <DetailItem label="Lineage rows" value={String(lineage.row_count ?? allRows.length)} />
+        <DetailItem label="Rows with a physical column" value={String(resolvedCount)} />
+        <DetailItem label="Rows without a physical match" value={String(allRows.length - resolvedCount)} />
+      </div>
+      {warnings.length > 0 && <div className="border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        <p className="font-semibold">{warnings.length} {warnings.length === 1 ? "object was" : "objects were"} reported as incomplete by the backend.</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">{warnings.slice(0, 8).map((warning, index) => <li key={`${warning.code}-${warning.object_name ?? index}`}>{warning.object_name ? <strong>{warning.object_name}: </strong> : null}{warning.message} <span className="text-amber-700">({warning.code})</span></li>)}</ul>
+        {warnings.length > 8 && <p className="mt-2 text-xs text-amber-700">{warnings.length - 8} further warnings were reported and are not listed here.</p>}
+      </div>}
+      <div className="grid gap-4 border-b border-zinc-200 pb-4 md:grid-cols-3">
+        <LineageSelect id="column-lineage-table-filter" label="Semantic table" value={tableFilter} options={[ALL_FILTER, ...tableNames]} onChange={setTableFilter} />
+        <LineageSelect id="column-lineage-type-filter" label="Semantic object type" value={objectTypeFilter} options={[ALL_FILTER, ...objectTypes]} onChange={setObjectTypeFilter} />
+        <label className="flex items-end gap-2 pb-2.5 text-sm text-zinc-600" htmlFor="column-lineage-resolved-only">
+          <input id="column-lineage-resolved-only" type="checkbox" className="size-4 accent-teal-700" checked={resolvedOnly} onChange={(event) => setResolvedOnly(event.target.checked)} />
+          Only rows with a resolved physical column
+        </label>
+      </div>
+      <ExplorerGrid
+        rowData={rows}
+        columnDefs={[
+          { field: "semanticObject", headerName: "Semantic object", minWidth: 220, flex: 1 },
+          { field: "objectType", headerName: "Object type", minWidth: 160 },
+          { field: "semanticTable", headerName: "Semantic table", minWidth: 180 },
+          { field: "referencedColumn", headerName: "Referenced semantic column", minWidth: 240 },
+          { field: "physicalColumn", headerName: "Physical column", minWidth: 320, flex: 1.2 },
+          { field: "provider", headerName: "Provider", minWidth: 140 },
+          { field: "resolutionMethod", headerName: "Resolution", minWidth: 190 },
+          { field: "dependencyDepth", headerName: "Depth", minWidth: 110 },
+          { field: "directDependency", headerName: "Direct", minWidth: 110 },
+          daxColumn("daxExpression", "DAX expression"),
+        ]}
+        emptyMessage="No column lineage rows matched the current filters."
+        exportFileName={`${filePart(selectedSemanticModel?.name)}-column-lineage`}
+        exportContext={context}
+      />
+      <p className="text-xs leading-5 text-zinc-500">A row shown as <strong>Not resolved</strong> means the engine reported the dependency but no physical source column could be resolved for it; nothing is inferred here. <strong>Native query select</strong> was read from the partition's own query text, whereas <strong>same name assumed</strong> matched the semantic column name against the source object.</p>
+    </>}
+  </div>;
+}
+
+/** One grid row per (lineage row x physical column). Rows the backend could not resolve are kept and marked, never dropped. */
+function columnLineageRows(lineage: SemanticModelColumnLineage | undefined): ExplorerGridRow[] {
+  if (!lineage) return [];
+  return (lineage.rows ?? []).flatMap((row, rowIndex) => {
+    const base = {
+      semanticTable: row.semantic_table ?? "--",
+      objectType: labelSnakeCase(row.semantic_object_type),
+      semanticObject: row.semantic_table ? `${row.semantic_table}[${row.semantic_object_name}]` : row.semantic_object_name,
+      referencedTable: row.referenced_semantic_table ?? "--",
+      referencedColumn: row.referenced_semantic_table && row.referenced_semantic_column
+        ? `${row.referenced_semantic_table}[${row.referenced_semantic_column}]`
+        : row.referenced_semantic_column ?? "No semantic column dependency",
+      dependencyDepth: row.dependency_depth ?? "--",
+      directDependency: row.is_direct_dependency === null || row.is_direct_dependency === undefined ? "--" : row.is_direct_dependency ? "Yes" : "No",
+      daxExpression: row.semantic_dax_expression ?? "--",
+    };
+
+    if (!row.physical_columns?.length) {
+      return [{ ...base, id: `lineage-${rowIndex}`, physicalResolved: "No", physicalColumn: "Not resolved", provider: "--", server: "--", database: "--", schemaName: "--", physicalObject: "--", physicalColumnName: "--", resolutionMethod: "--", sourceId: "--" }];
+    }
+
+    return row.physical_columns.map((physical, physicalIndex) => ({
+      ...base,
+      id: `lineage-${rowIndex}-${physicalIndex}`,
+      physicalResolved: "Yes",
+      physicalColumn: physical.fully_qualified_name,
+      provider: physical.provider,
+      server: physical.server ?? "--",
+      database: physical.database ?? "--",
+      schemaName: physical.schema_name ?? "--",
+      physicalObject: physical.object_name ?? "--",
+      physicalColumnName: physical.column_name,
+      resolutionMethod: labelSnakeCase(physical.resolution_method),
+      sourceId: physical.source_id,
+    }));
+  });
+}
+
+function labelSnakeCase(value: string) {
+  return `${value.charAt(0).toLocaleUpperCase()}${value.slice(1).replace(/_/g, " ")}`;
 }
 
 function LineageSelect({ id, label, value, options, onChange }: { id: string; label: string; value: string; options: string[]; onChange: (value: string) => void }) {

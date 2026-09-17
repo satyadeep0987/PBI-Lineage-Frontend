@@ -102,6 +102,7 @@ Only primitives imported by a current route dependency are retained:
 | `tests/impact-analysis.spec.ts` | Workspace scope, searchable table/measure selection, directed/collapsible impact graphs, grids, and degraded evidence. |
 | `tests/scanner.spec.ts` | Scanner submit/poll/result behavior plus dedicated scanner tabs and Explorer enrichment. |
 | `tests/setup-guide.spec.ts` | `/setup-guide` routing, content/references, Home/workspace navigation, page errors, screenshots, and mobile containment. |
+| `tests/column-lineage.spec.ts` | Explorer physical column lineage: deferred request, workspace-name parameter, semantic-to-physical rows, unresolved rows, warnings, filters, and unavailable XMLA. |
 | `REF_DOC/PROJECT_CONTEXT.md` | Local continuity and implementation constraints; ignored by Git unless repository policy changes. |
 
 ## CI/CD And Azure Scripts
