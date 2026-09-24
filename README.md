@@ -11,6 +11,104 @@ Developed by **Satyadeep Singh**.
 
 ## Latest Changes
 
+- **Semantic objects is now report-scoped.** Its nested semantic-model picker
+  is gone: the section follows the model the selected report is actually bound
+  to, reading `POST /api/v1/explorer/snapshot` instead of the model-scoped
+  `definition/parsed`. Rows carry a Semantic model column and are keyed by
+  `semantic_model_id`, so a response covering several models renders them
+  together in one grid with a banner naming the count. Two side effects worth
+  knowing: Power BI's Auto Date/Time tables are now excluded (the backend
+  filters them for this dataset, which `definition/parsed` does not), and the
+  Relationships metric is gone because the dataset carries no relationships —
+  it is replaced by a Semantic models count.
+- **Power AI no longer shows a context panel or a persona picker.** The widget
+  takes any question, and every answer is requested at full technical detail
+  (`audience: "developer"`); the previously persisted audience choice was
+  dropped so an old selection in localStorage cannot strand anyone.
+- **Fixed the measure definition coming back as a bare dependency list.** The
+  backend's `classify_intent` matches impact keywords before it looks at the
+  declared object type, so the old prompt's "depends on" routed the question to
+  the impact agent, which gathers no DAX definition — hence an answer with only
+  "Depends on" and "Downstream impact" sections. The prompt now avoids those
+  words and reaches the measure agent, which returns definition, upstream
+  lineage and impact evidence together. The panel also renders the backend's
+  verified evidence grouped by fact type beside the prose, so the DAX and its
+  source tables are visible even when model composition falls back.
+- **Backend reads are now cached for the whole session.** `QueryProvider` sets
+  `staleTime: Infinity`, `gcTime: Infinity` and turns off refetch-on-mount,
+  -focus and -reconnect, and every per-query `staleTime`/`gcTime` override was
+  removed so that one config is the only place caching is decided. Walking the
+  whole Explorer a second time issues zero requests; leaving for another page
+  and coming back issues zero. Queries with their own `refetchInterval`
+  (backend health, Power AI status, scanner status) keep polling, because an
+  interval is independent of staleness. Since nothing expires on its own, the
+  header gained a **Refresh data** control (`queryClient.resetQueries()`) that
+  reloads what is on screen and re-fetches everything else when next opened.
+  The cache is in memory only — a browser reload starts a new session.
+- Added a **Snowflake column lineage** panel beneath the Power AI panel in
+  Semantic - DB objects mappings: pick a fully qualified table and one of its
+  database columns, both composed from the grid above, and trace that column
+  upstream. It shares its trace call, result table and error handling with the
+  table-level panel. Neither panel offers a direction control: both send
+  `UPSTREAM`, and `object_domain` is fixed per panel (`TABLE` / `COLUMN`).
+- Added a **Snowflake object lineage** panel beneath Explorer's Source DB
+  lineage grid (`app/components/workspace/snowflake-object-lineage.tsx`): pick
+  a `DATABASE.SCHEMA.OBJECT` name composed from the evidence in that grid and
+  `POST /api/v1/lineage/snowflake/trace` returns the object/dependency counts
+  and the dependency edges for what feeds it. The picker
+  only offers rows that actually have a physical name to trace — unresolved
+  rows and cross-workspace model sources are left out rather than offered and
+  then failing. This route needs the **Snowflake** session, not the Power BI
+  one, so a 401 here says exactly that and links to database setup.
+- Added an Explorer **Semantic - DB objects mappings** section: one row per
+  semantic object beside the `sourceColumn` and `sourceTable` it resolves to.
+  A plain column resolves through its declared TMDL source column; measures and
+  calculated columns have no source column of their own, so theirs come from
+  the DAX dependencies the backend already traced (a measure over two columns
+  lists both).
+- Added a **Measure definition with Power AI** panel beneath that grid
+  (`app/components/workspace/measure-ai-definition.tsx`): pick a measure and a
+  reader — Business, General, or Developer, mapped to the backend's existing
+  `audience` field — and `POST /api/v1/ai/chat` returns a full grounded
+  definition, rendered in place and downloadable as `.md` (with the DAX and the
+  evidence list) or `.txt`. It uses the same `GET /api/v1/ai/status` lock as
+  the chat widget, so a backend with AI disabled or a dead session shows the
+  locked panel rather than a broken button.
+  It reads `POST /api/v1/explorer/snapshot` once rather than calling
+  `semantic-model-objects`, `measure-source-lineage`, and
+  `source-database-lineage` separately, which would repeat the expensive
+  workspace/report/TMDL fetches three times.
+- Removed the **Visibility** column from Semantic objects and the **Status**
+  and **Confidence** columns from Report visuals, in the row data as well as
+  the grid so exports match what is on screen.
+- Audited every frontend API call and removed the unused one: Explorer issued
+  `POST /api/v1/lineage/dax/analyze` on every model, posting the whole parsed
+  definition as the request body, and never read the response — its DAX columns
+  come from the parsed definition itself. Explorer's remaining heavy calls are
+  now gated on the open section instead of firing on report selection, and
+  duplicate cross-page requests (workspace list, estate discovery, estate
+  inventory, parsed definitions) were consolidated onto shared query keys.
+- Report Lineage now uses the shared `requestJson`; it carried a private copy
+  that read only FastAPI's `detail`, discarding the backend's error envelope
+  and every `request_id`. Explorer's Page details, Semantic objects, and Report
+  visuals sections were likewise switched from a hardcoded sentence to
+  `EvidenceError`, which distinguishes 401 from 403 and shows the `request_id`.
+- Restructured Explorer from seven flat tabs to **two**: **Assets & access**
+  and **Reports**. The report picker now sits once at the top of the Reports
+  tab, above four report-scoped sections — Page details, Source DB lineage,
+  Semantic objects, Report visuals — instead of being repeated inside each
+  tab. The **Table lineage** and **Column mapping** tabs were removed, along
+  with their `/api/v1/explorer/source-database-lineage`,
+  `/api/v1/explorer/visual-source-lookup`, and
+  `/api/v1/lineage/physical-sources/analyze` calls, the client-side graph
+  depth-limiting helpers, and the `include_cross_model_matching` opt-in that
+  only Table lineage used.
+- Added the **Source DB lineage** section, calling
+  `/api/v1/explorer/report-source-tables` for the selected report. Rows with no
+  resolved physical source (`source_object_type: "unknown"`) are listed as
+  unresolved rather than hidden, and account/database/schema blanks read
+  "Not applicable", "Not resolved", or "Not reported" so an inapplicable value
+  is distinguishable from a missing one.
 - Added one global, lazy-loaded Power AI launcher and floating panel across
   Home, Setup Guide, workspace, and API routes.
 - Added evidence/claim rendering, context-aware questions, general/business/
@@ -273,7 +371,6 @@ development server, build, and then restart it.
 | `npx playwright test tests/scanner.spec.ts` | Run only Scanner page and Explorer scan-panel coverage. |
 | `npx playwright test tests/app-shell.spec.ts` | Run desktop/tablet/mobile shell, collapsible navigation, and floating Power AI layout coverage. |
 | `npx playwright test tests/power-ai.spec.ts` | Run Power AI status, context, chat transport, evidence, error, and responsive-state coverage. |
-| `npx playwright test tests/column-lineage.spec.ts` | Run Explorer physical column lineage coverage. |
 | `npx playwright test tests/home.spec.ts` | Run only Home content, navigation, product-image, and desktop/mobile UX coverage. |
 | `npx playwright test tests/setup-guide.spec.ts` | Run only Setup Guide route, navigation, references, and responsive-containment coverage. |
 
@@ -316,12 +413,12 @@ Home
        -> optional source-system session (currently Snowflake)
   -> Explorer
        -> workspace
-       -> report or semantic model
-       -> report detail / semantic objects / mappings / diagrams
+       -> report
+       -> page details / source DB lineage / semantic objects /
+          semantic-DB mappings / report visuals
   -> Report Lineage
        -> report selected across the whole estate
-       -> snapshot evidence tabs
-       -> report / column / calculation diagrams
+       -> the same five report sections Explorer shows
   -> Table Impact
        -> workspace -> semantic model -> table (or one column)
        -> downstream or upstream impact diagram and grid
@@ -388,34 +485,47 @@ identity. IDs appear below selected names only as supporting technical context.
 
 Major levels:
 
-1. Workspace assets and access.
-2. Report page details.
-3. Report visual field lineage.
-4. Semantic tables, columns, measures, hierarchies, relationships, and DAX.
-5. Database-column to semantic-object mapping.
-6. Column and measure dependency diagrams.
-7. Semantic object to physical column lineage.
+1. **Assets & access** — the workspace's reports, semantic models, and (after
+   an explicit scan) dashboards, app linkage, and ownership.
+2. **Reports** — one report selected once, then four sections against it:
+   1. Page details.
+   2. Source DB lineage: every physical table/view backing the selected
+      report's semantic model, one row per table, with tables whose source
+      could not be traced (`source_object_type: "unknown"`) listed as
+      unresolved rather than omitted — plus an inline Snowflake trace panel
+      for any row with a fully qualified physical name.
+   3. Semantic objects: tables, columns, measures, and hierarchies for the
+      model the report is bound to, with their DAX expressions. No model
+      picker — several models, if returned, share one grid.
+   4. Semantic - DB objects mappings: every semantic object joined to its
+      `sourceColumn` and fully qualified `sourceTable`, plus an inline Power AI
+      panel that writes a downloadable definition of any measure.
+   5. Report visuals: visual field references matched to the bound semantic
+      model.
 
-Heavy report and semantic-model requests begin after selection and are cached by
-TanStack Query. Tabs reuse prepared data instead of repeating provider calls.
+Every heavy request is gated on the section that reads it actually being open,
+and is then cached by TanStack Query for five minutes — so moving between
+sections stays instant, but evidence for a section nobody opened is never
+fetched. Nothing is prefetched in the background.
 
-The Physical column lineage tab calls
-`POST /api/v1/workspaces/{workspace_id}/semantic-models/{semantic_model_id}/column-lineage`
-and passes the known `workspaceName` so the backend can skip its own lookup. It
-maps every measure, calculated column, and calculated table through its semantic
-column dependencies to the physical database columns it ultimately reads, using
-the live XMLA engine's own dependency graph and partition query text rather than
-parsed definition text. Because it opens a real XMLA connection, the request is
-only issued when the operator opens that tab, and it fails independently: XMLA
-read access and a permitting capacity are required, and an unavailable
-connection is reported with the backend's own reason instead of blanking the
-view. One grid row is rendered per resolved physical column; a dependency the
-backend could not resolve is kept and marked `Not resolved` rather than dropped
-or inferred.
+Requests that are identical no matter which page issues them share one query
+key from `app/lib/lineage-api.ts` (`workspaceListKey`, `estateDiscoveryKey`,
+`estateInventoryKey`, `parsedSemanticModelKey`, `daxAnalysisKey`) rather than
+being namespaced per page. Explorer, Scanner, Table Impact and Measure Impact
+therefore share one workspace list; Table Impact and Measure Impact share one
+estate inventory, which is the single most expensive thing the frontend does
+(it lists and parses every semantic model in scope).
 
 A report can use a semantic model from another workspace. Never substitute the
 report workspace ID for the model workspace ID unless estate evidence confirms
 the model is local.
+
+Source DB lineage calls the same `/api/v1/explorer/*` bulk endpoint Table
+Impact and Measure Impact already use elsewhere, but scoped to the single
+selected report rather than batched across a workspace. It defaults to
+`include_gateway_sources: false`; checking "Include gateway sources"
+re-fetches with the flag set to `true` — that costs real gateway-admin
+lookups, so it is never default-on.
 
 The Assets & access tab's dashboards, app linkage, and ownership sections are
 empty until the operator explicitly runs a metadata scan for the selected
@@ -423,45 +533,37 @@ workspace (see Scanner Data Flow) — this is never triggered automatically.
 
 ## Report Lineage Data Flow
 
+Report Lineage and Explorer show the same report-scoped evidence. They differ
+only in how you reach a report: Explorer makes you pick a workspace first,
+while Report Lineage lists every accessible report across every accessible
+workspace, including reports whose semantic model lives elsewhere. Past that
+selection both render `ReportEvidence`, so the tabs, the endpoints behind them,
+and the exports are identical, and the granularity stays exactly one report.
+
 1. `GET /api/v1/lineage/estate/discover?top=5000&skip=0` returns reports from
    all accessible workspaces plus graph bindings.
 2. The selector displays `report name - workspace name` and shows the report ID
-   after selection.
-3. `POST /api/v1/explorer/snapshot` prepares physical, semantic, DAX, report
-   layout, and visual source evidence for the selected report.
-4. Parsed TMDL and exact DAX analysis load in the background.
-5. Snapshot and exact dependency results are cached for ten minutes.
+   after selection. The estate graph's own report-to-model edge resolves which
+   workspace the bound semantic model actually lives in.
+3. The selected report is handed to `ReportEvidence` as a `ReportBinding`, which
+   fetches each section's evidence only once that section is opened.
 
-Evidence tabs:
+Sections, and the endpoint behind each:
 
-- Report information.
-- Database objects.
-- Semantic objects and DAX expressions.
-- Visual objects, pages, roles, and fields.
-- Semantic source mapping.
-- Visual source mapping.
-- Lineage diagrams.
-
-Diagram modes:
-
-- Report and database: physical source -> semantic table -> semantic model ->
-  report -> page -> optional visual expansion.
-- Column lineage: source evidence -> selected semantic column -> calculations
-  that use it, from one to six levels.
-- Measure and calculated column: upstream inputs -> selected target -> downstream
-  dependent calculations, from one to six levels.
-
-All three modes render through the shared, directed, collapsible lineage
-diagram engine described below. React Flow is remounted when graph identity
-changes so a new selection is fitted inside the viewport rather than
-inheriting the previous pan or zoom.
+| Section | Endpoint |
+| --- | --- |
+| Page details | `GET .../reports/{id}` and `GET .../reports/{id}/pages` |
+| Source DB lineage | `POST /explorer/report-source-tables`, plus `POST /lineage/snowflake/trace` for a selected table |
+| Semantic objects | `POST /explorer/semantic-model-objects` and `GET .../semantic-models/{id}/metadata` |
+| Semantic - DB objects mappings | `POST /explorer/snapshot`, plus `POST /ai/explain` and a column-level `POST /lineage/snowflake/trace` |
+| Report visuals | `POST .../definition/normalized`, `POST .../semantic-lineage`, `POST .../definition/parsed` |
 
 ## Lineage Diagram Engine
 
-Explorer, Report Lineage, Table Impact, and Measure Impact all render their
-diagrams through one shared engine in `app/components/workspace/lineage/`,
-so every dependency diagram in the application looks and behaves the same
-way:
+Table Impact and Measure Impact render their diagrams through one shared
+engine in `app/components/workspace/lineage/`, so every dependency diagram in
+the application looks and behaves the same way. Explorer and Report Lineage
+present their evidence as grids rather than diagrams:
 
 - `lineage-types.ts` defines the diagram-agnostic `LineageGraph` shape
   (`LineageGraphNode`/`LineageGraphEdge`) that every feature builds toward.
@@ -482,9 +584,9 @@ way:
 
 `app/lib/dependency-graph.ts` complements the diagram engine with
 `computeDependencyClosure`, a single multi-source breadth-first search over
-`dax/analyze`'s flat dependency-edge list that Explorer, Report Lineage,
-Table Impact, and Measure Impact all use to answer "what feeds this object,
-and what does it feed" from one or more seed objects, plus
+`dax/analyze`'s flat dependency-edge list that Table Impact and Measure Impact
+use to answer "what feeds this object, and what does it feed" from one or more
+seed objects, plus
 `closureToLineageGraph`, which turns that closure into a `LineageGraph` ready
 for `<LineageDiagram>`. `app/lib/lineage-api.ts`'s `fetchEstateInventory`
 complements both: it parses every semantic model across a chosen workspace
@@ -766,7 +868,6 @@ PBI-Lineage-Frontend/
 |   |   |   |   `-- lineage-types.ts
 |   |   |   |-- measure-impact.tsx
 |   |   |   |-- power-bi-setup.tsx
-|   |   |   |-- report-lineage-diagrams.tsx
 |   |   |   |-- report-lineage.tsx
 |   |   |   |-- scanner.tsx
 |   |   |   |-- table-impact.tsx
@@ -899,9 +1000,10 @@ PBI-Lineage-Frontend/
 | `app/components/workspace/workspace-sidebar.tsx` | Defines Setup Guide, Overview, operational setup, exploration, table/measure-impact, report-lineage, and API-documentation navigation for desktop/mobile shells. |
 | `app/components/workspace/power-bi-setup.tsx` | Validates and executes device-code/service-principal setup, presents provider readiness, clears secrets, and invalidates identity-dependent caches. |
 | `app/components/workspace/database-setup.tsx` | Validates Snowflake connection input and presents connect/status/logout information without raw setup JSON. |
-| `app/components/workspace/explorer.tsx` | Implements workspace-scoped report/model exploration, background heavy queries, AG Grid tables, copy/export, semantic mapping, column/measure diagrams rendered through the shared lineage engine, and an opt-in metadata scan panel for the current workspace's dashboards, app linkage, and ownership. |
-| `app/components/workspace/report-lineage.tsx` | Discovers reports across workspaces, resolves composite model ownership, prepares report snapshots, and renders report evidence tabs/tables. |
-| `app/components/workspace/report-lineage-diagrams.tsx` | Builds selectable report/database, column, measure, and calculated-column dependency graphs with depth controls and evidence copy, rendered through the shared lineage engine. |
+| `app/components/workspace/explorer.tsx` | Implements workspace-scoped exploration across two tabs — Assets & access, and Reports (one report picker above the shared `ReportEvidence` sections) — plus an opt-in metadata scan panel for the current workspace's dashboards, app linkage, and ownership. |
+| `app/components/workspace/report-lineage.tsx` | Discovers reports across every accessible workspace, resolves each one's bound semantic model (including a model owned by another workspace) from the estate graph, and renders the shared `ReportEvidence` sections for the selected report. |
+| `app/components/workspace/report-evidence.tsx` | The five report-scoped views — Page details, Source DB lineage, Semantic objects, Semantic - DB objects mappings, Report visuals — with their section tabs and every call behind them. Shared by Explorer and Report Lineage so both screens stay identical below the report picker. |
+| `app/components/workspace/evidence-ui.tsx` | Shared evidence primitives: the AG Grid wrapper with its copy/CSV/Excel toolbar, the export context helpers, the DAX column, and the loading/empty/warning/error states (including the 401-means-session-gone message). |
 | `app/components/workspace/table-impact.tsx` | Resolves a semantic table's or column's downstream/upstream DAX impact and cross-report/visual evidence into a directed diagram and an exportable AG Grid table. |
 | `app/components/workspace/measure-impact.tsx` | Resolves a single measure's upstream inputs and downstream dependents and cross-report/visual evidence into one bidirectional diagram and an exportable AG Grid table. |
 | `app/components/workspace/auth-required.tsx` | `PowerBiAuthRequired`: the shared "Power BI authentication is required" empty state shown whenever a page's first Power BI-backed query fails, with a link back to Power BI setup. Used by Explorer, Report Lineage, Table Impact, Measure Impact, and Scanner. |
@@ -913,9 +1015,8 @@ PBI-Lineage-Frontend/
 
 ### Lineage Diagram Engine
 
-Shared by Explorer, Report Lineage, Table Impact, and Measure Impact so every
-dependency diagram in the application is directed, auto-laid-out, and
-collapsible in the same way.
+Shared by Table Impact and Measure Impact so every dependency diagram in the
+application is directed, auto-laid-out, and collapsible in the same way.
 
 | File | Purpose and fulfilled responsibility |
 | --- | --- |
@@ -929,7 +1030,7 @@ collapsible in the same way.
 | File | Purpose and fulfilled responsibility |
 | --- | --- |
 | `app/lib/api-catalog.ts` | Defines OpenAPI/frontend endpoint types, fallback setup operations, request templates, schema example generation, endpoint flattening, URL construction, response parsing, method styles, and formatting helpers. |
-| `app/lib/dependency-graph.ts` | Pure multi-source DAX dependency traversal (`computeDependencyClosure`) shared by Explorer, Report Lineage, Table Impact, and Measure Impact, plus `closureToLineageGraph`, which turns a closure into a `LineageGraph` for `<LineageDiagram>`. |
+| `app/lib/dependency-graph.ts` | Pure multi-source DAX dependency traversal (`computeDependencyClosure`) shared by Table Impact and Measure Impact, plus `closureToLineageGraph`, which turns a closure into a `LineageGraph` for `<LineageDiagram>`. |
 | `app/lib/lineage-api.ts` | Shared admin-key-aware `requestJson` fetch helper for every `/lineage/*` and `/explorer/*` call, plus `boundReportsForModel`, chunked/concurrency-limited `fetchBatchedExplorer`, `fetchEstateInventory` (workspace-scoped table/measure inventory for Table/Measure Impact), and lineage query-key factories. |
 | `app/lib/scanner-api.ts` | Typed `startScan`/`getScanStatus`/`getScanResult` calls onto `/api/v1/scanner/*` (built on `requestJson`), `DEFAULT_SCAN_FLAGS`, and a full, defensive TypeScript model of Microsoft's real (backend-untyped) GetScanResult payload — every type and field from the official reference page. |
 | `app/lib/use-workspace-scan.ts` | `useWorkspaceScan` hook: drives the scanner's submit-then-poll-then-fetch workflow via TanStack Query's `refetchInterval`, never runs automatically, and resets when the workspace scope changes. Shared by Explorer's scan panel and the Scanner page. |
@@ -987,7 +1088,6 @@ packages, so retaining it caused clean-clone and GitHub TypeScript failures.
 | `tests/api-documentation.spec.ts` | Mocks OpenAPI/backend operations and verifies GET/POST execution, JSON validation, response metadata, and output copying behavior. |
 | `tests/app-shell.spec.ts` | Verifies desktop navigation persistence, tablet icon rail behavior, mobile drawers, and the non-resizing floating Power AI overlay. |
 | `tests/power-ai.spec.ts` | Verifies availability states, Power BI auth/permission locks, persona persistence, object context, SSE/non-SSE chat, cancellation, evidence, friendly errors, and responsive conversation continuity. |
-| `tests/column-lineage.spec.ts` | Mocks the semantic-model column-lineage endpoint and verifies that the request is deferred until the tab is opened, that the workspace name is passed, that semantic objects map to physical columns, that unresolved dependencies stay visible and marked, that backend warnings surface, that the table and resolved-only filters narrow rows, and that an unavailable XMLA connection reports the backend's reason instead of blanking. |
 | `tests/home.spec.ts` | Verifies the Home route, single main-content action, database-neutral copy, no Home health request, working product image, shared navigation, and desktop/mobile containment. |
 | `tests/setup-guide.spec.ts` | Verifies `/setup-guide`, required setup sections and official links, navigation to Home/workspace, and desktop/mobile layouts. |
 | `REF_DOC/PROJECT_CONTEXT.md` | Local continuity document containing current frontend contracts and implementation constraints; ignored by Git. |
@@ -1269,6 +1369,10 @@ requests to `/index.html` after the API proxy rule.
   creator/last-editor/configuring identities.
 - Orval, Vitest, and React Testing Library are installed but generated clients
   and focused unit/component suites are not yet committed.
+- Explorer has no dedicated Playwright spec (`tests/explorer.spec.ts` does not
+  exist). Its two-tab layout and Source DB lineage section were verified
+  manually against both a mocked and a live backend during development but
+  have no committed browser coverage.
 - Table Impact and Measure Impact compute cross-report/visual evidence from at
   most the first 300 reports bound to a semantic model (a visible notice
   appears if that cap is reached); see "Suggested Backend Endpoints" below for

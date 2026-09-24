@@ -36,15 +36,76 @@ export async function requestJson<T>(apiOrigin: string, path: string, init?: Req
     headers: { "Content-Type": "application/json", ...(adminKey ? { "X-Lineage-Admin-Key": adminKey } : {}), ...init?.headers },
   });
   const body = await readJsonResponse(response);
-  if (!response.ok) throw new Error(readRequestError(body, response.status));
+  if (!response.ok) throw toApiError(body, response.status, response.headers.get("x-request-id"));
   return body as T;
 }
 
-function readRequestError(body: unknown, status: number) {
-  if (typeof body === "object" && body !== null && "detail" in body && typeof (body as Record<string, unknown>).detail === "string") {
-    return String((body as Record<string, unknown>).detail);
+/**
+ * A failed backend call, carrying the HTTP status plus the backend's uniform
+ * error envelope (`{ error: { code, message, provider, request_id } }`) so the
+ * UI can tell "your session is gone" from "you lack this permission", and so
+ * `request_id` stays available for support instead of being thrown away.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly provider?: string;
+  readonly requestId?: string;
+
+  constructor(message: string, status: number, details: { code?: string; provider?: string; requestId?: string } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = details.code;
+    this.provider = details.provider;
+    this.requestId = details.requestId;
   }
-  return `Request failed with status ${status}.`;
+}
+
+/** Backend sessions live in one process's memory, so any backend restart turns every call into a 401. */
+export function isSessionExpired(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+/** 403 means the session is valid but the identity lacks the Power BI/Fabric scope or admin right this call needs. */
+export function isPermissionDenied(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403;
+}
+
+export function toApiError(body: unknown, status: number, headerRequestId?: string | null): ApiError {
+  const fallbackRequestId = headerRequestId ?? undefined;
+  const envelope = typeof body === "object" && body !== null ? (body as Record<string, unknown>).error : undefined;
+
+  if (typeof envelope === "object" && envelope !== null) {
+    const error = envelope as Record<string, unknown>;
+    return new ApiError(
+      typeof error.message === "string" && error.message ? error.message : `Request failed with status ${status}.`,
+      status,
+      {
+        code: typeof error.code === "string" ? error.code : undefined,
+        provider: typeof error.provider === "string" ? error.provider : undefined,
+        requestId: typeof error.request_id === "string" ? error.request_id : fallbackRequestId,
+      },
+    );
+  }
+
+  if (typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).detail === "string") {
+    return new ApiError(String((body as Record<string, unknown>).detail), status, { requestId: fallbackRequestId });
+  }
+
+  return new ApiError(`Request failed with status ${status}.`, status, { requestId: fallbackRequestId });
+}
+
+/**
+ * Drops this user's server-side cached provider reads. The backend caches
+ * workspaces, reports, semantic-model lists, gateways and both Fabric
+ * definition calls for the whole session, so a report edited in Power BI can
+ * otherwise take up to 30 minutes to appear. It never touches anyone else's
+ * cache. Clearing the browser's query cache alone is not enough — the next
+ * request would just be served the backend's stale copy.
+ */
+export async function clearServerCache(apiOrigin: string): Promise<void> {
+  await requestJson<unknown>(apiOrigin, "/api/v1/cache", { method: "DELETE" });
 }
 
 /** Every report bound to a semantic model, estate-wide, from an already-fetched estate/discover response. */
@@ -108,6 +169,21 @@ export async function fetchBatchedExplorer<TRow>(
   return { rows, truncated: selections.length > capped.length };
 }
 
+/**
+ * Query keys for requests that are identical no matter which page issues them.
+ * Every page that needs one of these must use the shared key rather than
+ * namespacing it under its own page name: the request URL and body are the
+ * same, so a page-scoped key only buys a second round trip for a payload the
+ * cache already holds. The declared TypeScript shapes differ per page — each is
+ * a subset of the same response — which is safe because the cached value is
+ * always the full body the backend returned.
+ */
+export const WORKSPACE_LIST_PATH = "/api/v1/workspaces?top=100&skip=0";
+export const ESTATE_DISCOVER_PATH = "/api/v1/lineage/estate/discover?top=5000&skip=0";
+
+export function workspaceListKey(apiOrigin: string) {
+  return ["workspaces", "list", apiOrigin] as const;
+}
 export function parsedSemanticModelKey(apiOrigin: string, workspaceId: string, modelId: string) {
   return ["semantic-model", "parsed", apiOrigin, workspaceId, modelId] as const;
 }
@@ -116,6 +192,10 @@ export function daxAnalysisKey(apiOrigin: string, workspaceId: string, modelId: 
 }
 export function estateDiscoveryKey(apiOrigin: string) {
   return ["lineage", "estate-discover", apiOrigin] as const;
+}
+/** Keyed on the workspace scope because `fetchEstateInventory` parses every model in it — by far the most expensive thing the frontend does. */
+export function estateInventoryKey(apiOrigin: string, workspaceIds: string[]) {
+  return ["lineage", "estate-inventory", apiOrigin, [...workspaceIds].sort().join(",")] as const;
 }
 
 export type ParsedColumn = { name: string; expression?: string | null };
