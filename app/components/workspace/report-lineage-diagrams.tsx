@@ -96,7 +96,7 @@ function ReportDatabaseLineage({ report, snapshot }: { report: ReportChoice; sna
       <LineageSelect id="report-lineage-page" label="Diagram scope" value={pageScope} options={[{ value: SUMMARY_SCOPE, label: "Whole report summary" }, ...pages]} onChange={setPageScope} />
       <div className="grid grid-cols-3 border border-zinc-200 bg-zinc-50"><Metric label="Database objects" value={snapshot.source_database_lineage.count} /><Metric label="Semantic objects" value={snapshot.semantic_model_objects.count} /><Metric label={pageScope === SUMMARY_SCOPE ? "Report pages" : "Page visuals"} value={pageScope === SUMMARY_SCOPE ? pages.length : uniqueVisuals(snapshot.report_layout.rows.filter((row) => row.page_id === pageScope)).length} /></div>
     </div>
-    <LineageDiagram direction="LR" graph={graph} title={selectedPage ? `${selectedPage} lineage` : `${report.report.name} lineage`} description={selectedPage ? "Physical sources and semantic tables used by the selected report page, followed by its visual objects." : "Physical database objects flow into semantic tables, the linked model, the report, and its pages."} emptyText="No report lineage evidence was returned." />
+    <LineageDiagram direction="LR" graph={graph} title={selectedPage ? `${selectedPage} lineage` : `${report.report.name} lineage`} description={selectedPage ? "Physical sources and semantic tables used by the selected report page, followed by its visual objects." : "Physical database objects flow into semantic tables, the linked model, the report, and its pages."} emptyText="No verified lineage data available." />
   </div>;
 }
 
@@ -125,7 +125,7 @@ function ColumnLineage({ snapshot, parsed, dax }: { snapshot: ExplorerSnapshot; 
       <LineageSelect id="column-lineage-column" label="Column" value={columnKey} options={tableColumns.map((column) => ({ value: column.key, label: `${column.name}${canonicalType(column.objectType) === "calculated_column" ? " (calculated)" : ""}` }))} onChange={setColumnKey} />
     </div>
     {selected && <ObjectEvidence object={selected} />}
-    <LineageDiagram direction="TB" graph={graph} focusNodeId={focusNodeId} title="Column-level lineage" description={selected ? `${selected.table}[${selected.name}] from database source evidence through calculations that use this column.` : "Column lineage"} emptyText="No lineage relationships were found for the selected column." />
+    <LineageDiagram direction="TB" graph={graph} focusNodeId={focusNodeId} title="Column-level lineage" description={selected ? `${selected.table}[${selected.name}] from database source evidence through calculations that use this column.` : "Column lineage"} emptyText="No verified lineage data available." />
   </div>;
 }
 
